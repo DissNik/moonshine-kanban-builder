@@ -1,0 +1,31 @@
+{
+    "name": "dissnik/moonshine-kanban-builder",
+    "description": "KanBan Builder for MoonShine",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "DissNik",
+            "homepage": "https://github.com/DissNik",
+            "role": "Developer"
+        }
+    ],
+    "autoload": {
+        "psr-4": {
+            "DissNik\\MoonShineKanBanBuilder\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+              "DissNik\\MoonShineKanBanBuilder\\Providers\\MoonShineKanBanBuilderServiceProvider"
+            ]
+        }
+    },
+    "require": {
+        "php": "^8.1|^8.2|^8.3"
+    },
+    "require-dev": {
+        "moonshine/moonshine": "^4.0"
+    }
+}

@@ -1,0 +1,17 @@
+{
+  "resources/css/stylesheet.css": {
+    "file": "css/stylesheet.css",
+    "src": "resources/css/stylesheet.css",
+    "isEntry": true,
+    "name": "stylesheet",
+    "names": [
+      "stylesheet.css"
+    ]
+  },
+  "resources/js/script.js": {
+    "file": "js/script.js",
+    "name": "script",
+    "src": "resources/js/script.js",
+    "isEntry": true
+  }
+}

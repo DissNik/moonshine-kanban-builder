@@ -1,0 +1,14 @@
+@import "tailwindcss/utilities";
+
+@reference 'tailwindcss/theme';
+
+@source '../views';
+
+.kanban-lift {
+    box-shadow:none;
+    border-style: dashed;
+
+    * {
+        opacity: 0;
+    }
+}
