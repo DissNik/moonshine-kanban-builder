@@ -1,14 +1,20 @@
-@import "tailwindcss/utilities";
-
+@import "tailwindcss";
 @reference 'tailwindcss/theme';
-
-@source '../views';
+@source '../views/**/*.blade.php';
 
 .kanban-lift {
     box-shadow:none;
     border-style: dashed;
 
     * {
-        opacity: 0;
+        @apply opacity-0;
     }
+}
+
+.kanban-column {
+    @apply p-2 flex-1 min-w-xs max-w-xs;
+}
+
+.kanban-card {
+    @apply cursor-pointer p-2  w-full max-w-full overflow-hidden transition-all duration-500;
 }

@@ -29,7 +29,7 @@ window.kanbanReorderable = function kanbanReorderable(sortRoute) {
             const container = this.$el;
             const csrfToken = container.dataset.csrf || document.querySelector('meta[name="csrf-token"]')?.content;
 
-            const sortableInstance = Sortable.create(container, {
+            Sortable.create(container, {
                 group: {
                     name: 'kanban-group',
                     pull: true,
@@ -87,8 +87,6 @@ window.kanbanReorderable = function kanbanReorderable(sortRoute) {
                     }
                 }
             });
-
-            this.sortableInstance = sortableInstance;
         }
     }
 }

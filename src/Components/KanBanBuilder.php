@@ -288,7 +288,7 @@ final class KanBanBuilder extends IterableComponent implements
             ->customAttributes(value($this->componentAttributes, $data, $index, $this))
             ->customAttributes(value($this->componentAttributes, $data, $index, $this))
             ->setAttribute('data-id', $data->id)
-            ->class('handle cursor-pointer p-2  w-full max-w-full overflow-hidden transition-all duration-500')
+            ->class('kanban-card handle')
             ->when(
                 $buttons->isNotEmpty(),
                 static fn (Card $card): Card => $card->actions(
@@ -307,8 +307,7 @@ final class KanBanBuilder extends IterableComponent implements
 
             $column = Box::make($label, $cards)
                 ->setLabel('')
-                ->class('p-2')
-                ->style('min-width: 300px; max-width: 300px; flex:1')
+                ->class('kanban-column')
                 ->setComponents([
                     Flex::make([
                         "<h4>$label</h4>",
