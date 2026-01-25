@@ -1,6 +1,4 @@
-@import "tailwindcss";
 @reference 'tailwindcss/theme';
-@source '../views/**/*.blade.php';
 
 .kanban-lift {
     box-shadow:none;
@@ -16,5 +14,5 @@
 }
 
 .kanban-card {
-    @apply cursor-pointer p-2  w-full max-w-full overflow-hidden transition-all duration-500;
+    @apply cursor-pointer p-2 w-full max-w-full overflow-hidden transition-all duration-500;
 }

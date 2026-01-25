@@ -36,7 +36,8 @@
             @if($components->isNotEmpty())
                 <div class="w-full overflow-hidden">
                     <div
-                        class="w-full overflow-x-auto [scrollbar-width:thin] [overflow-style:auto] [-ms-overflow-style:auto]"
+                        class="w-full overflow-x-auto"
+                        style="scrollbar-width: thin; -webkit-overflow-scrolling: touch; overflow-x: scroll;"
                         x-data="kanbanBoardScroll"
                     >
                         <div class="flex gap-2 select-none items-start min-w-max">
