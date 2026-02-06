@@ -54,3 +54,7 @@ public function modifyListComponent(ComponentContract $component): ComponentCont
         ->reorderRoute($this->resource->getAsyncMethodUrl('reorder'));
 }
 ```
+
+---
+
+WIP
