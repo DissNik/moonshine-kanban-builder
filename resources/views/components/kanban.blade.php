@@ -10,13 +10,34 @@
     'searchValue' => '',
     'topLeft' => null,
     'topRight' => null,
+    'syncEnabled' => false,
+    'initialSnapshot' => [],
+    'snapshotUrl' => '',
+    'refreshEvents' => [],
+    'transportMode' => 'manual',
+    'pollInterval' => 5000,
+    'cardClickEvent' => '',
+    'reorderRoute' => '#',
 ])
+@php
+    $kanbanExpression = $syncEnabled
+        ? 'kanbanBoard('.json_encode([
+            'initialSnapshot' => $initialSnapshot,
+            'snapshotUrl' => $snapshotUrl,
+            'reorderUrl' => $reorderRoute,
+            'refreshEvents' => $refreshEvents,
+            'transportMode' => $transportMode,
+            'pollInterval' => $pollInterval,
+            'cardClickEvent' => $cardClickEvent,
+        ], JSON_THROW_ON_ERROR).')'
+        : 'cardsBuilder('.(int) $async.', '.json_encode($asyncUrl, JSON_THROW_ON_ERROR).')';
+@endphp
 <div class="js-cards-builder-container">
-    <div x-data="cardsBuilder(
-    {{ (int) $async }},
-    '{{ $asyncUrl }}'
-)"
-        @defineEventWhen($async, 'cards_updated', $name, 'asyncRequest')
+    <div
+        x-data="{{ $kanbanExpression }}"
+        x-init="{{ $syncEnabled ? 'init()' : '' }}"
+        x-on:beforeunload.window="{{ $syncEnabled ? 'destroy()' : '' }}"
+        @defineEventWhen($async && ! $syncEnabled, 'cards_updated', $name, 'asyncRequest')
         {{ $attributes }}
     >
         <x-moonshine::iterable-wrapper
@@ -33,7 +54,52 @@
                 {!! $topRight ?? '' !!}
             </x-slot:topRight>
 
-            @if($components->isNotEmpty())
+            @if($syncEnabled)
+                <div class="w-full overflow-hidden">
+                    <div
+                        class="w-full overflow-x-auto"
+                        style="scrollbar-width: thin; -webkit-overflow-scrolling: touch; overflow-x: scroll;"
+                        x-data="kanbanBoardScroll"
+                        x-ref="boardScroll"
+                    >
+                        <div class="flex gap-2 select-none items-start min-w-max">
+                            <template x-if="! Array.isArray(columns) || columns.length === 0">
+                                <x-moonshine::alert type="default" class="my-4" icon="s.no-symbol">
+                                    {{ $translates['notfound'] }}
+                                </x-moonshine::alert>
+                            </template>
+
+                            <template x-for="column in columns" :key="column.status">
+                                <section
+                                    class="box space-elements kanban-column"
+                                    style="min-width: 20rem; max-width: 20rem; width: 20rem; flex: 0 0 20rem; padding: 0.5rem;"
+                                >
+                                    <div class="flex justify-between items-center gap-2">
+                                        <h4 x-text="column.label"></h4>
+                                        <span class="badge badge-gray" x-text="column.count"></span>
+                                    </div>
+
+                                    <div
+                                        class="flex flex-col gap-2"
+                                        style="max-height: calc(100vh - 16rem); overflow-y: auto;"
+                                        :data-column-status="column.status"
+                                    >
+                                        <template x-for="card in column.items" :key="card.id">
+                                            <div
+                                                class="handle cursor-pointer"
+                                                style="border:none; background:transparent; box-shadow:none; padding:0; margin:0;"
+                                                :data-id="card.id"
+                                                x-html="card.card_html"
+                                                @click="clickCard(card, $event)"
+                                            ></div>
+                                        </template>
+                                    </div>
+                                </section>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+            @elseif($components->isNotEmpty())
                 <div class="w-full overflow-hidden">
                     <div
                         class="w-full overflow-x-auto"

@@ -98,6 +98,26 @@ final class KanBanBuilder extends IterableComponent implements
 
     protected bool $searchable = false;
 
+    protected bool $syncEnabled = false;
+
+    /**
+     * @var array<string, mixed>
+     */
+    protected array $initialSnapshot = [];
+
+    protected string $snapshotUrl = '';
+
+    /**
+     * @var list<string>
+     */
+    protected array $refreshEvents = [];
+
+    protected string $transportMode = 'manual';
+
+    protected int $pollInterval = 5000;
+
+    protected string $cardClickEvent = '';
+
     /**
      * @param  iterable<array-key, TData>  $items
      * @param  FieldsContract|iterable<array-key, FieldContract>  $fields
@@ -408,6 +428,68 @@ final class KanBanBuilder extends IterableComponent implements
         return $this->searchable;
     }
 
+    /**
+     * @param  array<string, mixed>  $snapshot
+     */
+    public function initialSnapshot(array $snapshot): static
+    {
+        $this->syncEnabled = true;
+        $this->initialSnapshot = $snapshot;
+
+        return $this;
+    }
+
+    public function snapshotUrl(string $url): static
+    {
+        $this->syncEnabled = true;
+        $this->snapshotUrl = $url;
+
+        return $this;
+    }
+
+    /**
+     * @param  string|list<string>  $events
+     */
+    public function refreshEvents(string|array $events): static
+    {
+        $this->syncEnabled = true;
+        $this->refreshEvents = collect(\is_array($events) ? $events : [$events])
+            ->filter(static fn (mixed $event): bool => \is_string($event) && $event !== '')
+            ->values()
+            ->all();
+
+        return $this;
+    }
+
+    public function transportMode(string $mode): static
+    {
+        $this->syncEnabled = true;
+        $this->transportMode = $mode;
+
+        return $this;
+    }
+
+    public function pollInterval(int $milliseconds): static
+    {
+        $this->syncEnabled = true;
+        $this->pollInterval = $milliseconds;
+
+        return $this;
+    }
+
+    public function cardClickEvent(string $event): static
+    {
+        $this->syncEnabled = true;
+        $this->cardClickEvent = $event;
+
+        return $this;
+    }
+
+    public function isSyncEnabled(): bool
+    {
+        return $this->syncEnabled;
+    }
+
     protected function prepareBeforeRender(): void
     {
         parent::prepareBeforeRender();
@@ -450,6 +532,14 @@ final class KanBanBuilder extends IterableComponent implements
             'topRight' => $this->getTopRight(),
             'searchable' => $this->isSearchable(),
             'searchValue' => $this->getCore()->getRequest()->getScalar('search', ''),
+            'syncEnabled' => $this->isSyncEnabled(),
+            'initialSnapshot' => $this->initialSnapshot,
+            'snapshotUrl' => $this->snapshotUrl,
+            'refreshEvents' => $this->refreshEvents,
+            'transportMode' => $this->transportMode,
+            'pollInterval' => $this->pollInterval,
+            'cardClickEvent' => $this->cardClickEvent,
+            'reorderRoute' => $this->geReorderRoute(),
         ];
     }
 }
