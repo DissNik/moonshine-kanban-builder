@@ -71,28 +71,31 @@
 
                             <template x-for="column in columns" :key="column.status">
                                 <section
-                                    class="box space-elements kanban-column"
-                                    style="min-width: 20rem; max-width: 20rem; width: 20rem; flex: 0 0 20rem; padding: 0.5rem;"
+                                    class="box space-elements kanban-column p-0"
+                                    style="min-width: 20rem; max-width: 20rem; width: 20rem; flex: 0 0 20rem;"
                                 >
-                                    <div class="flex justify-between items-center gap-2">
+                                    <div class="kanban-column-header flex justify-between items-center gap-2">
                                         <h4 x-text="column.label"></h4>
                                         <span class="badge badge-gray" x-text="column.count"></span>
                                     </div>
 
-                                    <div
-                                        class="flex flex-col gap-2"
-                                        style="max-height: calc(100vh - 16rem); overflow-y: auto;"
-                                        :data-column-status="column.status"
-                                    >
-                                        <template x-for="card in column.items" :key="card.id">
-                                            <div
-                                                class="handle cursor-pointer"
-                                                style="border:none; background:transparent; box-shadow:none; padding:0; margin:0;"
-                                                :data-id="card.id"
-                                                x-html="card.card_html"
-                                                @click="clickCard(card, $event)"
-                                            ></div>
-                                        </template>
+                                    <div class="kanban-column-scroll">
+                                        <div
+                                            class="kanban-column-track flex flex-col gap-2"
+                                            :data-column-status="column.status"
+                                        >
+                                            <template x-for="card in column.items" :key="card.id">
+                                                <div class="kanban-column-card">
+                                                    <div
+                                                        class="handle cursor-pointer"
+                                                        style="border:none; background:transparent; box-shadow:none; padding:0; margin:0;"
+                                                        :data-id="card.id"
+                                                        x-html="card.card_html"
+                                                        @click="clickCard(card, $event)"
+                                                    ></div>
+                                                </div>
+                                            </template>
+                                        </div>
                                     </div>
                                 </section>
                             </template>
