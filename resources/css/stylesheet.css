@@ -13,8 +13,16 @@
     @apply flex-1 min-w-xs max-w-xs;
 }
 
+.kanban-draggable {
+    @apply cursor-pointer w-full max-w-full overflow-visible;
+}
+
+.kanban-card-content {
+    @apply w-full max-w-full overflow-visible;
+}
+
 .kanban-card {
-    @apply cursor-pointer p-2 w-full max-w-full overflow-hidden transition-all duration-500;
+    @apply w-full max-w-full overflow-visible;
 }
 
 .kanban-column-header {
@@ -23,17 +31,10 @@
 }
 
 .kanban-column-scroll {
-    overflow: hidden;
-    padding-bottom: calc(var(--spacing, 0.25rem) * 2);
-}
-
-.kanban-column-track {
     max-height: calc(100vh - 16rem);
     overflow-x: hidden;
     overflow-y: auto;
     overflow-y: overlay;
-}
-
-.kanban-column-card {
     padding-inline: calc(var(--spacing, 0.25rem) * 2);
+    padding-bottom: calc(var(--spacing, 0.25rem) * 2);
 }

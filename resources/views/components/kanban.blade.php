@@ -29,6 +29,7 @@
             'transportMode' => $transportMode,
             'pollInterval' => $pollInterval,
             'cardClickEvent' => $cardClickEvent,
+            'reorderRefreshCooldownMs' => 600,
         ], JSON_THROW_ON_ERROR).')'
         : 'cardsBuilder('.(int) $async.', '.json_encode($asyncUrl, JSON_THROW_ON_ERROR).')';
 @endphp
@@ -69,7 +70,7 @@
                                 </x-moonshine::alert>
                             </template>
 
-                            <template x-for="column in columns" :key="column.status">
+                            <template x-for="column in columns" :key="`${column.status}-${column.renderKey ?? 0}`">
                                 <section
                                     class="box space-elements kanban-column p-0"
                                     style="min-width: 20rem; max-width: 20rem; width: 20rem; flex: 0 0 20rem;"
@@ -79,23 +80,19 @@
                                         <span class="badge badge-gray" x-text="column.count"></span>
                                     </div>
 
-                                    <div class="kanban-column-scroll">
-                                        <div
-                                            class="kanban-column-track flex flex-col gap-2"
-                                            :data-column-status="column.status"
-                                        >
-                                            <template x-for="card in column.items" :key="card.id">
-                                                <div class="kanban-column-card">
-                                                    <div
-                                                        class="handle cursor-pointer"
-                                                        style="border:none; background:transparent; box-shadow:none; padding:0; margin:0;"
-                                                        :data-id="card.id"
-                                                        x-html="card.card_html"
-                                                        @click="clickCard(card, $event)"
-                                                    ></div>
-                                                </div>
-                                            </template>
-                                        </div>
+                                    <div
+                                        class="kanban-column-scroll flex flex-col gap-2"
+                                        :data-column-status="column.status"
+                                    >
+                                        <template x-for="card in column.items" :key="`${card.id}-${column.renderKey ?? 0}`">
+                                            <article
+                                                class="kanban-draggable handle"
+                                                :data-id="card.id"
+                                                @click="clickCard(card, $event)"
+                                            >
+                                                <div class="kanban-card-content" x-html="card.card_html"></div>
+                                            </article>
+                                        </template>
                                     </div>
                                 </section>
                             </template>

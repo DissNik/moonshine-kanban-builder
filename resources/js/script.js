@@ -2,6 +2,29 @@ import Sortable from 'sortablejs'
 
 const DEFAULT_REORDER_EVENTS = ['fragment_updated:crud-list']
 
+if (!Sortable.__kanbanDestroyedInstanceGuardApplied) {
+    const originalHandleEvent = Sortable.prototype.handleEvent
+    const originalOnDragOver = Sortable.prototype._onDragOver
+
+    Sortable.prototype.handleEvent = function patchedHandleEvent(event) {
+        if (!this.el) {
+            return
+        }
+
+        return originalHandleEvent.call(this, event)
+    }
+
+    Sortable.prototype._onDragOver = function patchedOnDragOver(event) {
+        if (!this.el) {
+            return false
+        }
+
+        return originalOnDragOver.call(this, event)
+    }
+
+    Sortable.__kanbanDestroyedInstanceGuardApplied = true
+}
+
 function normalizeEvents(events, fallback = []) {
     if (Array.isArray(events)) {
         return events.filter((eventName) => typeof eventName === 'string' && eventName !== '')
@@ -22,6 +45,30 @@ function dispatchBrowserEvents(events, detail = {}) {
             composed: true,
         }))
     })
+}
+
+function orderedIdsForContainer(container) {
+    const sortable = Sortable.get(container)
+
+    if (sortable) {
+        return sortable.toArray().filter((id) => typeof id === 'string' && id !== '')
+    }
+
+    return Array.from(container.children)
+        .filter((item) => item instanceof HTMLElement && item.matches('.kanban-draggable[data-id]'))
+        .map((item) => item.dataset.id)
+        .filter((id) => typeof id === 'string' && id !== '')
+}
+
+function haveSameIdsInSameCount(currentItems = [], incomingItems = []) {
+    if (currentItems.length !== incomingItems.length) {
+        return false
+    }
+
+    const currentIds = currentItems.map((item) => item.id).sort()
+    const incomingIds = incomingItems.map((item) => item.id).sort()
+
+    return currentIds.every((id, index) => id === incomingIds[index])
 }
 
 window.kanbanBoardScroll = function kanbanBoardScroll() {
@@ -55,14 +102,22 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
         pendingRefresh: false,
         refreshInFlight: false,
         queuedRefreshForce: false,
+        reorderInFlight: false,
         intervalId: null,
         sortables: [],
+        refreshRequestId: 0,
+        appliedRefreshRequestId: 0,
+        refreshGeneration: 0,
+        renderNonce: 0,
         snapshotUrl: config.snapshotUrl ?? '',
         reorderUrl: config.reorderUrl ?? '',
         refreshEvents: normalizeEvents(config.refreshEvents),
         transportMode: config.transportMode ?? 'manual',
         pollInterval: Number(config.pollInterval || 5000),
         cardClickEvent: config.cardClickEvent ?? '',
+        reorderRefreshCooldownMs: Number(config.reorderRefreshCooldownMs || 600),
+        refreshBlockedUntil: 0,
+        deferredRefreshTimeoutId: null,
 
         init() {
             this.handleRefreshEvent = () => this.refresh({ force: true })
@@ -73,7 +128,7 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
 
             if (this.transportMode === 'polling' && this.pollInterval > 0) {
                 this.intervalId = window.setInterval(() => {
-                    if (!document.hidden) {
+                    if (!document.hidden && !this.reorderInFlight) {
                         this.refresh()
                     }
                 }, this.pollInterval)
@@ -91,7 +146,105 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
                 window.clearInterval(this.intervalId)
             }
 
+            if (this.deferredRefreshTimeoutId) {
+                window.clearTimeout(this.deferredRefreshTimeoutId)
+            }
+
             this.destroySortables()
+        },
+
+        isRefreshBlocked() {
+            return Date.now() < this.refreshBlockedUntil
+        },
+
+        blockRefreshTemporarily() {
+            this.refreshGeneration += 1
+            this.refreshBlockedUntil = Date.now() + this.reorderRefreshCooldownMs
+        },
+
+        scheduleDeferredRefresh(force = true) {
+            if (this.deferredRefreshTimeoutId) {
+                window.clearTimeout(this.deferredRefreshTimeoutId)
+            }
+
+            const delay = Math.max(this.refreshBlockedUntil - Date.now(), 0)
+
+            this.deferredRefreshTimeoutId = window.setTimeout(() => {
+                this.deferredRefreshTimeoutId = null
+                this.refresh({ force })
+            }, delay)
+        },
+
+        withRenderKeys(columns = []) {
+            return (columns || []).map((column) => ({
+                ...column,
+                renderKey: ++this.renderNonce,
+            }))
+        },
+
+        mergeSnapshotColumns(columns = []) {
+            return this.withRenderKeys((columns || []).map((incomingColumn) => {
+                const currentColumn = this.columns.find((column) => column.status === incomingColumn.status)
+
+                if (!currentColumn || !haveSameIdsInSameCount(currentColumn.items || [], incomingColumn.items || [])) {
+                    return incomingColumn
+                }
+
+                const incomingItemsById = new Map(
+                    (incomingColumn.items || []).map((item) => [item.id, item]),
+                )
+
+                const mergedItems = (currentColumn.items || []).map((item) => {
+                    const incomingItem = incomingItemsById.get(item.id)
+
+                    return incomingItem
+                        ? { ...incomingItem, status: incomingColumn.status }
+                        : item
+                })
+
+                return {
+                    ...incomingColumn,
+                    items: mergedItems,
+                    count: mergedItems.length,
+                }
+            }))
+        },
+
+        syncLocalStateAfterReorder() {
+            window.requestAnimationFrame(() => {
+                window.requestAnimationFrame(() => {
+                    if (this.dragging || this.reorderInFlight) {
+                        return
+                    }
+
+                    const itemPool = new Map(
+                        this.columns.flatMap((column) => (column.items || []).map((item) => [item.id, item])),
+                    )
+
+                    this.columns = this.withRenderKeys(this.columns.map((column) => {
+                        const columnElement = this.$el.querySelector(`[data-column-status="${column.status}"]`)
+
+                        if (!columnElement) {
+                            return column
+                        }
+
+                        const items = Array.from(columnElement.children)
+                            .filter((item) => item instanceof HTMLElement && item.matches('.kanban-draggable[data-id]'))
+                            .map((item) => itemPool.get(item.dataset.id) ?? null)
+                            .filter((item) => item !== null)
+                            .map((item) => ({
+                                ...item,
+                                status: column.status,
+                            }))
+
+                        return {
+                            ...column,
+                            items,
+                            count: items.length,
+                        }
+                    }))
+                })
+            })
         },
 
         currentQueryString() {
@@ -153,13 +306,20 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
             })
         },
 
-        async refresh({ force = false } = {}) {
+        async refresh({ force = false, allowDuringDrag = false } = {}) {
             if (!this.snapshotUrl) {
                 return
             }
 
-            if (this.dragging) {
+            if ((this.dragging || this.reorderInFlight) && !allowDuringDrag) {
                 this.pendingRefresh = true
+
+                return
+            }
+
+            if (this.isRefreshBlocked()) {
+                this.pendingRefresh = true
+                this.scheduleDeferredRefresh(force)
 
                 return
             }
@@ -171,6 +331,8 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
             }
 
             this.refreshInFlight = true
+            const requestId = ++this.refreshRequestId
+            const generation = this.refreshGeneration
 
             try {
                 const response = await axios.get(this.buildSnapshotUrl(force), {
@@ -182,8 +344,17 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
 
                 const payload = response.data || {}
 
+                if (generation !== this.refreshGeneration) {
+                    return
+                }
+
+                if (requestId < this.refreshRequestId || requestId < this.appliedRefreshRequestId) {
+                    return
+                }
+
                 if (!payload.changed) {
                     this.version = payload.version ?? this.version
+                    this.appliedRefreshRequestId = requestId
 
                     return
                 }
@@ -191,7 +362,8 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
                 const scrollState = this.captureScrollState()
 
                 this.version = payload.version ?? null
-                this.columns = payload.columns ?? []
+                this.columns = this.mergeSnapshotColumns(payload.columns ?? [])
+                this.appliedRefreshRequestId = requestId
 
                 this.$nextTick(() => {
                     this.restoreScrollState(scrollState)
@@ -217,56 +389,23 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
 
             if (this.pendingRefresh) {
                 this.pendingRefresh = false
-                this.refresh({ force: true })
-            }
-        },
 
-        moveCard(cardId, toStatus, toIndex = null) {
-            let card = null
-
-            this.columns.forEach((column) => {
-                const index = (column.items || []).findIndex((item) => item.id === cardId)
-
-                if (index !== -1) {
-                    card = column.items.splice(index, 1)[0]
+                if (!this.isRefreshBlocked()) {
+                    this.refresh({ force: true })
                 }
-            })
-
-            if (!card) {
-                return
             }
-
-            const targetColumn = this.columns.find((column) => column.status === toStatus)
-
-            if (!targetColumn) {
-                return
-            }
-
-            card.status = toStatus
-
-            if (toIndex === null || toIndex >= targetColumn.items.length) {
-                targetColumn.items.push(card)
-            } else {
-                targetColumn.items.splice(toIndex, 0, card)
-            }
-
-            this.recount()
         },
 
-        recount() {
-            this.columns.forEach((column) => {
-                column.count = (column.items || []).length
-            })
-        },
-
-        async persistReorder(cardId, toStatus, orderedIds, toIndex) {
+        async persistReorder(cardId, fromStatus, toStatus, orderedIds) {
             if (!this.reorderUrl) {
                 this.clearDrag()
 
                 return
             }
 
-            this.moveCard(cardId, toStatus, toIndex)
+            this.reorderInFlight = true
+            this.blockRefreshTemporarily()
+            let reorderSucceeded = false
 
             try {
                 await axios.post(this.reorderUrl, {
@@ -281,12 +420,17 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
                     },
                 })
 
-                await this.refresh({ force: true })
+                reorderSucceeded = true
             } catch (error) {
-                await this.refresh({ force: true })
+                this.scheduleDeferredRefresh(true)
                 throw error
             } finally {
+                this.reorderInFlight = false
                 this.clearDrag()
+
+                if (reorderSucceeded) {
+                    this.syncLocalStateAfterReorder()
+                }
             }
         },
 
@@ -307,6 +451,30 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
             this.sortables = []
         },
 
+        async handleSortableChange(event, fallbackStatus) {
+            const movedId = event.item.dataset.id
+            const sourceStatus = event.from.dataset.columnStatus || fallbackStatus
+            const targetStatus = event.to.dataset.columnStatus || fallbackStatus
+            const orderedIds = orderedIdsForContainer(event.to)
+
+            if (!movedId || orderedIds.length === 0) {
+                this.clearDrag()
+
+                return
+            }
+
+            try {
+                await this.persistReorder(
+                    movedId,
+                    sourceStatus,
+                    targetStatus,
+                    orderedIds,
+                )
+            } catch (error) {
+                console.error('Reorder error:', error)
+            }
+        },
+
         bindSortables() {
             this.destroySortables()
 
@@ -318,8 +486,12 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
                         put: true,
                     },
                     animation: 150,
+                    swapThreshold: 0.65,
+                    invertSwap: true,
+                    invertedSwapThreshold: 0.65,
                     handle: '.handle',
-                    draggable: '[data-id]',
+                    draggable: '.kanban-draggable',
+                    dataIdAttr: 'data-id',
                     ghostClass: 'kanban-ghost',
                     chosenClass: 'kanban-chosen',
 
@@ -328,23 +500,23 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
                         this.startDrag(event.item.dataset.id, column.dataset.columnStatus)
                     },
 
-                    onEnd: async (event) => {
+                    onUpdate: async (event) => {
+                        await this.handleSortableChange(event, column.dataset.columnStatus)
+                    },
+
+                    onAdd: async (event) => {
+                        await this.handleSortableChange(event, column.dataset.columnStatus)
+                    },
+
+                    onEnd: (event) => {
                         event.item.classList.remove('kanban-lift')
 
-                        const movedId = event.item.dataset.id
-                        const targetStatus = event.to.dataset.columnStatus || column.dataset.columnStatus
-                        const orderedIds = Array.from(event.to.querySelectorAll('[data-id]')).map((item) => item.dataset.id)
-
-                        if (event.from === event.to && event.oldIndex === event.newIndex) {
+                        if (
+                            !this.reorderInFlight
+                            && event.from === event.to
+                            && event.oldDraggableIndex === event.newDraggableIndex
+                        ) {
                             this.clearDrag()
-
-                            return
-                        }
-
-                        try {
-                            await this.persistReorder(movedId, targetStatus, orderedIds, event.newIndex)
-                        } catch (error) {
-                            console.error('Reorder error:', error)
                         }
                     },
                 })
@@ -369,6 +541,9 @@ window.kanbanReorderable = function kanbanReorderable(sortRoute, options = {}) {
                     put: true,
                 },
                 animation: 150,
+                swapThreshold: 0.65,
+                invertSwap: true,
+                invertedSwapThreshold: 0.65,
                 handle: '.handle',
                 draggable: '[data-id]',
                 ghostClass: 'kanban-ghost',
@@ -381,7 +556,10 @@ window.kanbanReorderable = function kanbanReorderable(sortRoute, options = {}) {
                 onEnd: async (event) => {
                     event.item.classList.remove('kanban-lift')
 
-                    if (event.from === event.to && event.oldIndex === event.newIndex) {
+                    if (
+                        event.from === event.to
+                        && event.oldDraggableIndex === event.newDraggableIndex
+                    ) {
                         return
                     }
 
