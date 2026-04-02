@@ -118,8 +118,21 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
         reorderRefreshCooldownMs: Number(config.reorderRefreshCooldownMs || 600),
         refreshBlockedUntil: 0,
         deferredRefreshTimeoutId: null,
+        initialized: false,
 
         init() {
+            if (this.initialized) {
+                this.destroy()
+            }
+
+            const previousInstance = this.$el.__kanbanBoardInstance
+
+            if (previousInstance && previousInstance !== this && typeof previousInstance.destroy === 'function') {
+                previousInstance.destroy()
+            }
+
+            this.$el.__kanbanBoardInstance = this
+            this.initialized = true
             this.handleRefreshEvent = () => this.refresh({ force: true })
 
             this.refreshEvents.forEach((eventName) => {
@@ -138,19 +151,28 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
         },
 
         destroy() {
-            this.refreshEvents.forEach((eventName) => {
-                window.removeEventListener(eventName, this.handleRefreshEvent)
-            })
+            if (this.handleRefreshEvent) {
+                this.refreshEvents.forEach((eventName) => {
+                    window.removeEventListener(eventName, this.handleRefreshEvent)
+                })
+            }
 
             if (this.intervalId) {
                 window.clearInterval(this.intervalId)
+                this.intervalId = null
             }
 
             if (this.deferredRefreshTimeoutId) {
                 window.clearTimeout(this.deferredRefreshTimeoutId)
+                this.deferredRefreshTimeoutId = null
             }
 
             this.destroySortables()
+            this.initialized = false
+
+            if (this.$el?.__kanbanBoardInstance === this) {
+                delete this.$el.__kanbanBoardInstance
+            }
         },
 
         isRefreshBlocked() {
