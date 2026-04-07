@@ -8,6 +8,8 @@ use DissNik\MoonShineKanBanBuilder\Contracts\KanbanTransportContract;
 use DissNik\MoonShineKanBanBuilder\Support\KanbanTransport;
 use DissNik\MoonShineKanBanBuilder\Support\NullKanbanTransport;
 use DissNik\MoonShineKanBanBuilder\Tests\TestCase;
+use InvalidArgumentException;
+use RuntimeException;
 
 final class KanbanTransportTest extends TestCase
 {
@@ -60,6 +62,32 @@ final class KanbanTransportTest extends TestCase
             ],
         ], $this->app->make(KanbanTransport::class)->clientConfig());
     }
+
+    public function test_invalid_transport_adapter_class_fails_with_explicit_runtime_exception(): void
+    {
+        config()->set('moonshine-kanban-builder.transport.adapter', 'App\\Kanban\\MissingTransport');
+
+        (new \DissNik\MoonShineKanBanBuilder\Providers\MoonShineKanBanBuilderServiceProvider($this->app))->register();
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Configured kanban transport adapter [App\\Kanban\\MissingTransport] could not be found.');
+
+        $this->app->make(KanbanTransportContract::class);
+    }
+
+    public function test_invalid_transport_adapter_contract_fails_with_explicit_argument_exception(): void
+    {
+        config()->set('moonshine-kanban-builder.transport.adapter', InvalidFakeKanbanTransport::class);
+
+        (new \DissNik\MoonShineKanBanBuilder\Providers\MoonShineKanBanBuilderServiceProvider($this->app))->register();
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage(
+            'Configured kanban transport adapter [' . InvalidFakeKanbanTransport::class . '] must implement [' . KanbanTransportContract::class . '].'
+        );
+
+        $this->app->make(KanbanTransportContract::class);
+    }
 }
 
 final class FakeKanbanTransport implements KanbanTransportContract
@@ -82,5 +110,13 @@ final class FakeKanbanTransport implements KanbanTransportContract
                 'configured' => true,
             ],
         ];
+    }
+}
+
+final class InvalidFakeKanbanTransport
+{
+    public function clientConfig(): array
+    {
+        return [];
     }
 }

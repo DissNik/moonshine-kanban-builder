@@ -23,6 +23,18 @@ final readonly class KanbanColumn
         if ($this->label === '') {
             throw new InvalidArgumentException('Kanban column label must not be empty.');
         }
+
+        $itemIds = array_map(
+            static fn (KanbanItem $item): string => $item->id,
+            $this->items,
+        );
+
+        if (count($itemIds) !== count(array_unique($itemIds))) {
+            throw new InvalidArgumentException(sprintf(
+                'Kanban column [%s] contains duplicate item ids.',
+                $this->id,
+            ));
+        }
     }
 
     /**

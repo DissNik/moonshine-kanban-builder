@@ -84,4 +84,46 @@ final class KanbanSnapshotTest extends TestCase
         $this->assertSame('qualification', $column->toArray()['id']);
         $this->assertSame('Lead 2', $column->toArray()['items'][0]['title']);
     }
+
+    public function test_snapshot_rejects_duplicate_column_ids(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Kanban snapshot contains duplicate column ids.');
+
+        KanbanSnapshot::fromArray([
+            'columns' => [
+                [
+                    'id' => 'new',
+                    'label' => 'New',
+                    'items' => [],
+                ],
+                [
+                    'id' => 'new',
+                    'label' => 'Duplicate',
+                    'items' => [],
+                ],
+            ],
+        ]);
+    }
+
+    public function test_column_rejects_duplicate_item_ids(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Kanban column [qualification] contains duplicate item ids.');
+
+        KanbanColumn::fromArray([
+            'id' => 'qualification',
+            'label' => 'Qualification',
+            'items' => [
+                [
+                    'id' => 'lead-1',
+                    'html' => '<div>Lead 1</div>',
+                ],
+                [
+                    'id' => 'lead-1',
+                    'html' => '<div>Lead 1 duplicate</div>',
+                ],
+            ],
+        ]);
+    }
 }

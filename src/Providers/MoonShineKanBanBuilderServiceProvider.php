@@ -9,6 +9,8 @@ use DissNik\MoonShineKanBanBuilder\Support\KanbanConfig;
 use DissNik\MoonShineKanBanBuilder\Support\KanbanTransport;
 use DissNik\MoonShineKanBanBuilder\Support\NullKanbanTransport;
 use Illuminate\Support\ServiceProvider;
+use InvalidArgumentException;
+use RuntimeException;
 
 class MoonShineKanBanBuilderServiceProvider extends ServiceProvider
 {
@@ -44,7 +46,24 @@ class MoonShineKanBanBuilderServiceProvider extends ServiceProvider
                 return new NullKanbanTransport;
             }
 
-            return $app->make($adapter);
+            if (! class_exists($adapter)) {
+                throw new RuntimeException(sprintf(
+                    'Configured kanban transport adapter [%s] could not be found.',
+                    $adapter,
+                ));
+            }
+
+            $transport = $app->make($adapter);
+
+            if (! $transport instanceof KanbanTransportContract) {
+                throw new InvalidArgumentException(sprintf(
+                    'Configured kanban transport adapter [%s] must implement [%s].',
+                    $adapter,
+                    KanbanTransportContract::class,
+                ));
+            }
+
+            return $transport;
         });
 
         $this->app->singleton(KanbanTransport::class);

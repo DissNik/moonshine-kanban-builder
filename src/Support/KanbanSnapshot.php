@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace DissNik\MoonShineKanBanBuilder\Support;
 
+use InvalidArgumentException;
+
 final readonly class KanbanSnapshot
 {
     /**
@@ -17,7 +19,16 @@ final readonly class KanbanSnapshot
         public bool $changed = true,
         public array $meta = [],
         public array $filters = [],
-    ) {}
+    ) {
+        $columnIds = array_map(
+            static fn (KanbanColumn $column): string => $column->id,
+            $this->columns,
+        );
+
+        if (count($columnIds) !== count(array_unique($columnIds))) {
+            throw new InvalidArgumentException('Kanban snapshot contains duplicate column ids.');
+        }
+    }
 
     /**
      * @param array<string, mixed> $payload

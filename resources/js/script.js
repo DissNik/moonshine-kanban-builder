@@ -171,7 +171,9 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
 
             this.$el.__kanbanBoardInstance = this
             this.initialized = true
-            this.handleRefreshEvent = () => this.refresh({ force: true })
+            this.handleRefreshEvent = () => {
+                void this.refresh({ force: true })
+            }
 
             this.refreshEvents.forEach((eventName) => {
                 window.addEventListener(eventName, this.handleRefreshEvent)
@@ -180,7 +182,7 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
             if (this.transportMode === 'polling' && this.pollInterval > 0) {
                 this.intervalId = window.setInterval(() => {
                     if (!document.hidden && !this.reorderInFlight) {
-                        this.refresh()
+                        void this.refresh()
                     }
                 }, this.pollInterval)
             }
@@ -232,8 +234,12 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
 
             this.deferredRefreshTimeoutId = window.setTimeout(() => {
                 this.deferredRefreshTimeoutId = null
-                this.refresh({ force })
+                void this.refresh({ force })
             }, delay)
+        },
+
+        reportRefreshError(error) {
+            console.error('Kanban refresh error:', error)
         },
 
         withRenderKeys(columns = []) {
@@ -355,26 +361,26 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
 
         async refresh({ force = false, allowDuringDrag = false } = {}) {
             if (!this.snapshotUrl) {
-                return
+                return false
             }
 
             if ((this.dragging || this.reorderInFlight) && !allowDuringDrag) {
                 this.pendingRefresh = true
 
-                return
+                return false
             }
 
             if (this.isRefreshBlocked()) {
                 this.pendingRefresh = true
                 this.scheduleDeferredRefresh(force)
 
-                return
+                return false
             }
 
             if (this.refreshInFlight) {
                 this.queuedRefreshForce = this.queuedRefreshForce || force
 
-                return
+                return false
             }
 
             this.refreshInFlight = true
@@ -392,18 +398,18 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
                 const payload = response.data || {}
 
                 if (generation !== this.refreshGeneration) {
-                    return
+                    return false
                 }
 
                 if (requestId < this.refreshRequestId || requestId < this.appliedRefreshRequestId) {
-                    return
+                    return false
                 }
 
                 if (!payload.changed) {
                     this.version = payload.version ?? this.version
                     this.appliedRefreshRequestId = requestId
 
-                    return
+                    return true
                 }
 
                 const scrollState = this.captureScrollState()
@@ -416,13 +422,18 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
                     this.restoreScrollState(scrollState)
                     this.bindSortables()
                 })
+                return true
+            } catch (error) {
+                this.reportRefreshError(error)
+
+                return false
             } finally {
                 this.refreshInFlight = false
 
                 if (this.queuedRefreshForce) {
                     const queuedForce = this.queuedRefreshForce
                     this.queuedRefreshForce = false
-                    this.refresh({ force: queuedForce })
+                    void this.refresh({ force: queuedForce })
                 }
             }
         },
@@ -438,7 +449,7 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
                 this.pendingRefresh = false
 
                 if (!this.isRefreshBlocked()) {
-                    this.refresh({ force: true })
+                    void this.refresh({ force: true })
                 }
             }
         },
