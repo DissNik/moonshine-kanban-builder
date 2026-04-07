@@ -1,11 +1,14 @@
 # MoonShine Kanban Builder
 
-`dissnik/moonshine-kanban-builder` is a MoonShine component for rendering kanban-style boards on top of the standard card/list workflow.
+`dissnik/moonshine-kanban-builder` is a snapshot-driven MoonShine kanban component.
 
-It supports two usage modes:
+This package now has a single public integration path:
 
-- classic server-rendered kanban columns with drag-and-drop reorder;
-- sync-capable boards with consumer-owned snapshot payloads, browser refresh events, polling, and a future-ready transport boundary for websocket integration.
+- the host application owns column/item snapshots;
+- the package renders those snapshots and manages drag-and-drop runtime;
+- refresh, reorder persistence, and card-open behavior stay consumer-owned.
+
+Legacy server-rendered builder columns, field mappers, and classic `CardsBuilder`-style usage were removed.
 
 <picture>
     <img alt="Kanban Builder" src="./art/screenshot.png">
@@ -24,61 +27,15 @@ Optional config publishing:
 php artisan vendor:publish --tag=moonshine-kanban-builder-config
 ```
 
-## Classic Usage
-
-Use the component like a kanban-oriented `CardsBuilder` replacement when server-rendered columns are enough:
-
-```php
-use DissNik\MoonShineKanBanBuilder\Components\KanBanBuilder;
-use Modules\LeadManagement\Enums\LeadStatus;
-use MoonShine\Contracts\UI\ComponentContract;
-use MoonShine\UI\Components\Badge;
-use MoonShine\UI\Components\Layout\Flex;
-use MoonShine\UI\Components\Thumbnails;
-
-public function modifyListComponent(ComponentContract $component): ComponentContract
-{
-    $resource = $this->getResource();
-
-    return KanBanBuilder::make()
-        ->title('title')
-        ->content(fn (Lead $lead) => Flex::make([
-            Flex::make([
-                $lead->created_at,
-                Thumbnails::make(
-                    $lead->responsible
-                        ? $lead->responsible->map(fn ($user) => $user->avatar_url)->filter()->toArray()
-                        : [],
-                ),
-            ])->class('w-full')->justifyAlign('between'),
-            Flex::make([
-                Badge::make((string) count($lead->comments))->icon('chat-bubble-left-right'),
-            ])->class('w-full')->justifyAlign('start'),
-        ]))
-        ->fields($component->getFields())
-        ->name($this->getListComponentName())
-        ->url(fn (Lead $lead) => $resource->getFormPageUrl($lead->getKey()))
-        ->async()
-        ->cast($this->getResource()->getCaster())
-        ->buttons($this->getButtons())
-        ->items($component->getOriginalItems())
-        ->groups(LeadStatus::assignableStatuses())
-        ->reorderRoute($resource->getAsyncMethodUrl('reorder'));
-}
-```
-
-## Sync-Capable Usage
-
-Use sync-capable mode when the application owns the board snapshot payload and wants controlled refresh behavior:
+## Usage
 
 ```php
 use DissNik\MoonShineKanBanBuilder\Components\KanBanBuilder;
 
 KanBanBuilder::make()
     ->name('lead-list')
-    ->groups(LeadStatus::assignableStatuses())
-    ->reorderRoute($this->getResource()->getAsyncMethodUrl('reorder'))
-    ->initialSnapshot($this->buildSnapshotPayload(...))
+    ->reorderUrl($this->getResource()->getAsyncMethodUrl('reorder'))
+    ->snapshot($this->buildSnapshotPayload(...))
     ->snapshotUrl($this->getSnapshotUrl())
     ->refreshEvents('lead-kanban:refresh')
     ->cardClickEvent('lead-kanban:card-open');
@@ -88,12 +45,13 @@ The consumer remains responsible for:
 
 - generating the snapshot payload;
 - exposing the snapshot endpoint;
+- persisting drag reorder;
 - deciding which browser events should force a refresh;
 - handling card-open behavior in the host application.
 
-## Snapshot Payload Contract
+## Snapshot Contract
 
-`initialSnapshot()` and `snapshotUrl()` must use the same payload shape.
+`snapshot()` and `snapshotUrl()` must use the same payload shape.
 
 Minimal example:
 
@@ -103,14 +61,15 @@ Minimal example:
   "version": "hash",
   "columns": [
     {
-      "status": "new",
+      "id": "new",
       "label": "New",
-      "count": 1,
       "items": [
         {
           "id": "lead-1",
-          "card_html": "<div>...</div>",
-          "form_url": "/resource/1"
+          "html": "<div>...</div>",
+          "title": "Lead",
+          "form_url": "/resource/1",
+          "open_url": "/resource#lead-1"
         }
       ]
     }
@@ -118,12 +77,34 @@ Minimal example:
 }
 ```
 
-Notes:
+Rules:
 
-- `card_html` is rendered by the consumer and injected into the board as-is.
-- `version` is used to skip unnecessary refresh payload application.
+- `columns[].id` is the stable column identity used by the JS runtime and reorder protocol.
+- `items[].id` is the stable card identity used for DOM diffing and reorder persistence.
+- `items[].html` is consumer-rendered card markup injected into the board as-is.
+- extra item keys are preserved and passed back to `cardClickEvent()` as `event.detail.card`.
 - `changed: false` may be returned with an empty `columns` array when nothing changed.
-- `cardClickEvent()` dispatches a browser event with `{ card }` in `event.detail`.
+
+The package exposes value objects for this contract:
+
+- `DissNik\MoonShineKanBanBuilder\Support\KanbanSnapshot`
+- `DissNik\MoonShineKanBanBuilder\Support\KanbanColumn`
+- `DissNik\MoonShineKanBanBuilder\Support\KanbanItem`
+
+## Reorder Protocol
+
+Drag reorder is persisted through a strict JSON payload:
+
+```json
+{
+  "item_id": "lead-1",
+  "column_id": "qualification",
+  "previous_column_id": "new",
+  "ordered_ids": ["lead-1", "lead-2"]
+}
+```
+
+Client-side field names are also exposed through `KanbanReorderPayload::clientConfig()`.
 
 ## Transport And Config
 
@@ -165,15 +146,13 @@ return [
 
 ### Structured Transport Boundary
 
-The package now resolves transport in the same style as `moonshine-commentable`:
+The package resolves transport through:
 
 - `DissNik\MoonShineKanBanBuilder\Contracts\KanbanTransportContract`
 - `DissNik\MoonShineKanBanBuilder\Support\KanbanTransport`
 - `DissNik\MoonShineKanBanBuilder\Support\NullKanbanTransport`
 
-The browser runtime receives a structured `transport` object instead of scattered magic values. Application-wide defaults should be set in config; fluent builder calls are additive per board instance.
-
-Per-board overrides are still available:
+Per-board overrides are available:
 
 ```php
 KanBanBuilder::make()
@@ -181,7 +160,17 @@ KanBanBuilder::make()
     ->pollInterval(7000);
 ```
 
-`events.reorder_refresh` is the fallback event list used by the legacy reorderable runtime when explicit refresh events were not passed to that runtime.
+## Breaking Changes
+
+This refactor intentionally removed the old package API:
+
+- `groups()` was removed.
+- `reorderRoute()` was replaced by `reorderUrl()`.
+- `initialSnapshot()` was replaced by `snapshot()`.
+- legacy server-rendered card columns and field-mapper API were removed.
+- snapshot columns now use `id` instead of `status`.
+- snapshot items now use `html` instead of `card_html`.
+- reorder now sends JSON `ordered_ids` instead of CSV `data`, and `column_id` instead of `parent`.
 
 ## Asset Publishing
 
@@ -196,28 +185,15 @@ If the app still uses old browser behavior after package changes, stale publishe
 
 ## Testing
 
-The package now includes its own minimal PHPUnit harness:
+Package tests:
 
 ```bash
 vendor/bin/phpunit -c phpunit.xml.dist
 ```
 
-Current package tests cover:
-
-- config defaults and overrides;
-- transport boundary resolution;
-- null transport fallback;
-- stable transport payload shape.
-
-Consumer validation is still important for real application behavior:
+Consumer validation:
 
 ```bash
 cd franchise && php artisan test tests/Unit/KanbanPackageContractTest.php
 cd franchise && composer check
 ```
-
-## Current Limits
-
-- websocket transport is a boundary only; realtime delivery is not enabled by default;
-- lead-specific offcanvas, hash sync, and card-open behavior belong in the host application, not in this package;
-- published assets must be refreshed explicitly in the consumer after package runtime changes.

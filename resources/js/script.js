@@ -112,6 +112,7 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
     const transportMode = normalizeTransportMode(transport.mode, allowedTransportModes)
     const pollInterval = normalizePositiveNumber(transport.polling?.interval, 0)
     const reorderRefreshCooldownMs = normalizePositiveNumber(config.reorderRefreshCooldownMs, 0)
+    const reorderRequest = config.reorderRequest ?? {}
 
     return {
         columns: config.initialSnapshot?.columns ?? [],
@@ -142,6 +143,7 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
         refreshBlockedUntil: 0,
         deferredRefreshTimeoutId: null,
         initialized: false,
+        reorderRequest,
 
         init() {
             if (this.initialized) {
@@ -170,6 +172,7 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
                 }, this.pollInterval)
             }
 
+            this.columns = this.withRenderKeys(this.columns)
             this.$nextTick(() => this.bindSortables())
         },
 
@@ -229,7 +232,7 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
 
         mergeSnapshotColumns(columns = []) {
             return this.withRenderKeys((columns || []).map((incomingColumn) => {
-                const currentColumn = this.columns.find((column) => column.status === incomingColumn.status)
+                const currentColumn = this.columns.find((column) => column.id === incomingColumn.id)
 
                 if (!currentColumn || !haveSameIdsInSameCount(currentColumn.items || [], incomingColumn.items || [])) {
                     return incomingColumn
@@ -239,18 +242,9 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
                     (incomingColumn.items || []).map((item) => [item.id, item]),
                 )
 
-                const mergedItems = (currentColumn.items || []).map((item) => {
-                    const incomingItem = incomingItemsById.get(item.id)
-
-                    return incomingItem
-                        ? { ...incomingItem, status: incomingColumn.status }
-                        : item
-                })
-
                 return {
                     ...incomingColumn,
-                    items: mergedItems,
-                    count: mergedItems.length,
+                    items: (currentColumn.items || []).map((item) => incomingItemsById.get(item.id) ?? item),
                 }
             }))
         },
@@ -267,7 +261,7 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
                     )
 
                     this.columns = this.withRenderKeys(this.columns.map((column) => {
-                        const columnElement = this.$el.querySelector(`[data-column-status="${column.status}"]`)
+                        const columnElement = this.$el.querySelector(`[data-column-id="${column.id}"]`)
 
                         if (!columnElement) {
                             return column
@@ -277,15 +271,10 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
                             .filter((item) => item instanceof HTMLElement && item.matches('.kanban-draggable[data-id]'))
                             .map((item) => itemPool.get(item.dataset.id) ?? null)
                             .filter((item) => item !== null)
-                            .map((item) => ({
-                                ...item,
-                                status: column.status,
-                            }))
 
                         return {
                             ...column,
                             items,
-                            count: items.length,
                         }
                     }))
                 })
@@ -326,9 +315,9 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
 
             return {
                 boardScrollLeft: board?.scrollLeft ?? 0,
-                columnScrollTopByStatus: Object.fromEntries(
-                    Array.from(this.$el.querySelectorAll('[data-column-status]')).map((column) => [
-                        column.dataset.columnStatus,
+                columnScrollTopById: Object.fromEntries(
+                    Array.from(this.$el.querySelectorAll('[data-column-id]')).map((column) => [
+                        column.dataset.columnId,
                         column.scrollTop,
                     ]),
                 ),
@@ -342,8 +331,8 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
                 board.scrollLeft = state.boardScrollLeft
             }
 
-            Object.entries(state.columnScrollTopByStatus ?? {}).forEach(([status, scrollTop]) => {
-                const column = this.$el.querySelector(`[data-column-status="${status}"]`)
+            Object.entries(state.columnScrollTopById ?? {}).forEach(([columnId, scrollTop]) => {
+                const column = this.$el.querySelector(`[data-column-id="${columnId}"]`)
 
                 if (column && typeof scrollTop === 'number') {
                     column.scrollTop = scrollTop
@@ -425,8 +414,8 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
             }
         },
 
-        startDrag(cardId, fromStatus) {
-            this.dragging = { cardId, fromStatus }
+        startDrag(cardId, fromColumnId) {
+            this.dragging = { cardId, fromColumnId }
         },
 
         clearDrag() {
@@ -441,7 +430,7 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
             }
         },
 
-        async persistReorder(cardId, fromStatus, toStatus, orderedIds) {
+        async persistReorder(cardId, fromColumnId, toColumnId, orderedIds) {
             if (!this.reorderUrl) {
                 this.clearDrag()
 
@@ -454,9 +443,10 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
 
             try {
                 await axios.post(this.reorderUrl, {
-                    moved_id: cardId,
-                    parent: toStatus,
-                    data: orderedIds.join(','),
+                    [this.reorderRequest.itemId ?? 'item_id']: cardId,
+                    [this.reorderRequest.targetColumnId ?? 'column_id']: toColumnId,
+                    [this.reorderRequest.previousColumnId ?? 'previous_column_id']: fromColumnId,
+                    [this.reorderRequest.orderedIds ?? 'ordered_ids']: orderedIds,
                 }, {
                     headers: {
                         'X-Requested-With': 'XMLHttpRequest',
@@ -475,6 +465,12 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
 
                 if (reorderSucceeded) {
                     this.syncLocalStateAfterReorder()
+                    dispatchBrowserEvents(this.transport.events?.reorderRefresh, {
+                        itemId: cardId,
+                        columnId: toColumnId,
+                        previousColumnId: fromColumnId,
+                        orderedIds,
+                    })
                 }
             }
         },
@@ -496,10 +492,10 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
             this.sortables = []
         },
 
-        async handleSortableChange(event, fallbackStatus) {
+        async handleSortableChange(event, fallbackColumnId) {
             const movedId = event.item.dataset.id
-            const sourceStatus = event.from.dataset.columnStatus || fallbackStatus
-            const targetStatus = event.to.dataset.columnStatus || fallbackStatus
+            const sourceColumnId = event.from.dataset.columnId || fallbackColumnId
+            const targetColumnId = event.to.dataset.columnId || fallbackColumnId
             const orderedIds = orderedIdsForContainer(event.to)
 
             if (!movedId || orderedIds.length === 0) {
@@ -511,8 +507,8 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
             try {
                 await this.persistReorder(
                     movedId,
-                    sourceStatus,
-                    targetStatus,
+                    sourceColumnId,
+                    targetColumnId,
                     orderedIds,
                 )
             } catch (error) {
@@ -523,7 +519,7 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
         bindSortables() {
             this.destroySortables()
 
-            this.$el.querySelectorAll('[data-column-status]').forEach((column) => {
+            this.$el.querySelectorAll('[data-column-id]').forEach((column) => {
                 const sortable = Sortable.create(column, {
                     group: {
                         name: 'kanban-group',
@@ -542,15 +538,15 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
 
                     onStart: (event) => {
                         event.item.classList.add('kanban-lift')
-                        this.startDrag(event.item.dataset.id, column.dataset.columnStatus)
+                        this.startDrag(event.item.dataset.id, column.dataset.columnId)
                     },
 
                     onUpdate: async (event) => {
-                        await this.handleSortableChange(event, column.dataset.columnStatus)
+                        await this.handleSortableChange(event, column.dataset.columnId)
                     },
 
                     onAdd: async (event) => {
-                        await this.handleSortableChange(event, column.dataset.columnStatus)
+                        await this.handleSortableChange(event, column.dataset.columnId)
                     },
 
                     onEnd: (event) => {
@@ -567,88 +563,6 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
                 })
 
                 this.sortables.push(sortable)
-            })
-        },
-    }
-}
-
-window.kanbanReorderable = function kanbanReorderable(sortRoute, options = {}) {
-    return {
-        init() {
-            const container = this.$el
-            const csrfToken = container.dataset.csrf || document.querySelector('meta[name="csrf-token"]')?.content
-            const refreshEvents = normalizeEvents(
-                options.refreshEvents,
-                normalizeEvents(options.transport?.events?.reorderRefresh),
-            )
-
-            Sortable.create(container, {
-                group: {
-                    name: 'kanban-group',
-                    pull: true,
-                    put: true,
-                },
-                animation: 150,
-                swapThreshold: 0.65,
-                invertSwap: true,
-                invertedSwapThreshold: 0.65,
-                handle: '.handle',
-                draggable: '[data-id]',
-                ghostClass: 'kanban-ghost',
-                chosenClass: 'kanban-chosen',
-
-                onStart: (event) => {
-                    event.item.classList.add('kanban-lift')
-                },
-
-                onEnd: async (event) => {
-                    event.item.classList.remove('kanban-lift')
-
-                    if (
-                        event.from === event.to
-                        && event.oldDraggableIndex === event.newDraggableIndex
-                    ) {
-                        return
-                    }
-
-                    const allItems = event.to.querySelectorAll('[data-id]')
-                    const itemIds = Array.from(allItems).map((item) => item.dataset.id)
-
-                    const formData = new FormData()
-                    formData.append('_token', csrfToken)
-                    formData.append('data', itemIds.join(','))
-                    formData.append('parent', event.to.dataset.parentKey || event.to.dataset.parent_key)
-                    formData.append('moved_id', event.item.dataset.id)
-
-                    try {
-                        await fetch(sortRoute, {
-                            method: 'POST',
-                            body: formData,
-                        })
-
-                        dispatchBrowserEvents(refreshEvents, {
-                            movedId: event.item.dataset.id,
-                            parent: event.to.dataset.parentKey || event.to.dataset.parent_key,
-                        })
-                    } catch (error) {
-                        console.error('Reorder error:', error)
-                        event.item.style.backgroundColor = '#fee'
-                        setTimeout(() => {
-                            event.item.style.backgroundColor = ''
-                        }, 1000)
-                    }
-                },
-
-                onMove: (event) => {
-                    const rect = container.getBoundingClientRect()
-                    const y = event.originalEvent.clientY
-
-                    if (y < rect.top + 80) {
-                        container.scrollTop -= 25
-                    } else if (y > rect.bottom - 80) {
-                        container.scrollTop += 25
-                    }
-                },
             })
         },
     }
