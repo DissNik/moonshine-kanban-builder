@@ -3,6 +3,9 @@
 namespace DissNik\MoonShineKanBanBuilder\Components;
 
 use Closure;
+use DissNik\MoonShineKanBanBuilder\Contracts\KanbanTransportContract;
+use DissNik\MoonShineKanBanBuilder\Support\KanbanConfig;
+use DissNik\MoonShineKanBanBuilder\Support\NullKanbanTransport;
 use Illuminate\Support\Collection;
 use MoonShine\AssetManager\Css;
 use MoonShine\AssetManager\Js;
@@ -112,9 +115,9 @@ final class KanBanBuilder extends IterableComponent implements
      */
     protected array $refreshEvents = [];
 
-    protected string $transportMode = 'manual';
+    protected string $transportMode;
 
-    protected int $pollInterval = 5000;
+    protected int $pollInterval;
 
     protected string $cardClickEvent = '';
 
@@ -133,6 +136,8 @@ final class KanBanBuilder extends IterableComponent implements
 
         $this->items($items);
         $this->fields($fields);
+        $this->transportMode = KanbanConfig::transportMode();
+        $this->pollInterval = KanbanConfig::pollingInterval();
 
         $this->withAttributes([]);
     }
@@ -464,7 +469,7 @@ final class KanBanBuilder extends IterableComponent implements
     public function transportMode(string $mode): static
     {
         $this->syncEnabled = true;
-        $this->transportMode = $mode;
+        $this->transportMode = KanbanConfig::normalizeTransportMode($mode);
 
         return $this;
     }
@@ -472,7 +477,9 @@ final class KanBanBuilder extends IterableComponent implements
     public function pollInterval(int $milliseconds): static
     {
         $this->syncEnabled = true;
-        $this->pollInterval = $milliseconds;
+        $this->pollInterval = $milliseconds > 0
+            ? $milliseconds
+            : KanbanConfig::pollingInterval();
 
         return $this;
     }
@@ -523,6 +530,10 @@ final class KanBanBuilder extends IterableComponent implements
      */
     protected function viewData(): array
     {
+        $transport = app()->bound(KanbanTransportContract::class)
+            ? app(KanbanTransportContract::class)->clientConfig()
+            : (new NullKanbanTransport)->clientConfig();
+
         return [
             'components' => $this->getComponents(),
             'name' => $this->getName(),
@@ -538,6 +549,9 @@ final class KanBanBuilder extends IterableComponent implements
             'refreshEvents' => $this->refreshEvents,
             'transportMode' => $this->transportMode,
             'pollInterval' => $this->pollInterval,
+            'allowedTransportModes' => KanbanConfig::allowedTransportModes(),
+            'reorderRefreshCooldownMs' => KanbanConfig::reorderRefreshCooldown(),
+            'transport' => $transport,
             'cardClickEvent' => $this->cardClickEvent,
             'reorderRoute' => $this->geReorderRoute(),
         ];

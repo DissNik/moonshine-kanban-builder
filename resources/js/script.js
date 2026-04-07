@@ -1,7 +1,5 @@
 import Sortable from 'sortablejs'
 
-const DEFAULT_REORDER_EVENTS = ['fragment_updated:crud-list']
-
 if (!Sortable.__kanbanDestroyedInstanceGuardApplied) {
     const originalHandleEvent = Sortable.prototype.handleEvent
     const originalOnDragOver = Sortable.prototype._onDragOver
@@ -45,6 +43,20 @@ function dispatchBrowserEvents(events, detail = {}) {
             composed: true,
         }))
     })
+}
+
+function normalizeTransportMode(mode, allowedModes = []) {
+    if (allowedModes.includes(mode)) {
+        return mode
+    }
+
+    return allowedModes[0] ?? mode
+}
+
+function normalizePositiveNumber(value, fallback) {
+    const parsed = Number(value)
+
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
 }
 
 function orderedIdsForContainer(container) {
@@ -95,6 +107,12 @@ window.kanbanBoardScroll = function kanbanBoardScroll() {
 }
 
 window.kanbanBoard = function kanbanBoard(config = {}) {
+    const transport = config.transport ?? {}
+    const allowedTransportModes = normalizeEvents(transport.allowedModes)
+    const transportMode = normalizeTransportMode(transport.mode, allowedTransportModes)
+    const pollInterval = normalizePositiveNumber(transport.polling?.interval, 0)
+    const reorderRefreshCooldownMs = normalizePositiveNumber(config.reorderRefreshCooldownMs, 0)
+
     return {
         columns: config.initialSnapshot?.columns ?? [],
         version: config.initialSnapshot?.version ?? null,
@@ -111,11 +129,16 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
         renderNonce: 0,
         snapshotUrl: config.snapshotUrl ?? '',
         reorderUrl: config.reorderUrl ?? '',
-        refreshEvents: normalizeEvents(config.refreshEvents),
-        transportMode: config.transportMode ?? 'manual',
-        pollInterval: Number(config.pollInterval || 5000),
+        refreshEvents: normalizeEvents(
+            config.refreshEvents,
+            normalizeEvents(transport.signals?.refresh),
+        ),
+        transport,
+        transportMode,
+        pollInterval,
+        allowedTransportModes,
         cardClickEvent: config.cardClickEvent ?? '',
-        reorderRefreshCooldownMs: Number(config.reorderRefreshCooldownMs || 600),
+        reorderRefreshCooldownMs,
         refreshBlockedUntil: 0,
         deferredRefreshTimeoutId: null,
         initialized: false,
@@ -554,7 +577,10 @@ window.kanbanReorderable = function kanbanReorderable(sortRoute, options = {}) {
         init() {
             const container = this.$el
             const csrfToken = container.dataset.csrf || document.querySelector('meta[name="csrf-token"]')?.content
-            const refreshEvents = normalizeEvents(options.refreshEvents, DEFAULT_REORDER_EVENTS)
+            const refreshEvents = normalizeEvents(
+                options.refreshEvents,
+                normalizeEvents(options.transport?.events?.reorderRefresh),
+            )
 
             Sortable.create(container, {
                 group: {

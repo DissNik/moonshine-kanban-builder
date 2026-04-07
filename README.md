@@ -71,10 +71,51 @@ KanBanBuilder::make()
     ->initialSnapshot($this->buildSnapshotPayload(...))
     ->snapshotUrl($this->getResource()->getAsyncMethodUrl('snapshot'))
     ->refreshEvents('lead-kanban:refresh')
-    ->transportMode('polling') // manual | polling | reserved realtime boundary
-    ->pollInterval(5000)
     ->cardClickEvent('lead-kanban:card-open');
 ```
+
+Transport defaults now live in `config/moonshine-kanban-builder.php`:
+
+```php
+return [
+    'events' => [
+        'reorder_refresh' => [
+            'fragment_updated:crud-list',
+        ],
+    ],
+    'transport' => [
+        'mode' => 'manual', // manual | polling | websocket
+        'polling' => [
+            'interval' => 5000,
+        ],
+        'signals' => [
+            'refresh' => 'kanban.refresh',
+        ],
+        'adapter' => null, // host transport adapter class, null => NullKanbanTransport
+    ],
+];
+```
+
+The package now resolves a transport service in the same style as `moonshine-commentable`:
+
+- `DissNik\MoonShineKanBanBuilder\Contracts\KanbanTransportContract`
+- `DissNik\MoonShineKanBanBuilder\Support\NullKanbanTransport`
+- `DissNik\MoonShineKanBanBuilder\Support\KanbanTransport`
+
+Use config for application-wide transport defaults, and fluent calls only when a specific board instance must override them:
+
+```php
+KanBanBuilder::make()
+    ->transportMode('polling')
+    ->pollInterval(7000);
+```
+
+Current usage model:
+
+- `manual`: board refreshes only from browser events
+- `polling`: board also refreshes on configured polling interval
+- `websocket`: reserved transport boundary; wire a host adapter class in config when realtime delivery is introduced
+- `events.reorder_refresh`: fallback browser events for the legacy reorderable runtime
 
 ### Sync Payload Contract
 
@@ -104,7 +145,9 @@ KanBanBuilder::make()
 - `card_html` is rendered by the consumer and injected as-is by the package runtime.
 - `cardClickEvent()` keeps card-open behavior consumer-driven: the package dispatches a browser event with `{ card }` in `event.detail`.
 - `refreshEvents()` configures browser events that should trigger a forced snapshot refresh.
-- `transportMode('polling')` enables interval refreshes; `manual` keeps refresh event driven behavior only.
+- package config owns default transport behavior; `transportMode()` / `pollInterval()` remain additive per-board overrides.
+- browser runtime now receives a structured `transport` object from the package instead of independent magic scalars.
+- `transportMode('polling')` enables interval refreshes; `manual` keeps refresh event driven behavior only; `websocket` is still future-ready and requires a host adapter before it does anything useful.
 
 ## Validation Strategy
 

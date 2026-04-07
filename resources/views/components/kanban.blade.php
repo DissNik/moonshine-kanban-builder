@@ -1,3 +1,7 @@
+@php
+    use DissNik\MoonShineKanBanBuilder\Support\KanbanConfig;
+@endphp
+
 @props([
     'components' => [],
     'bulkButtons' => [],
@@ -14,22 +18,49 @@
     'initialSnapshot' => [],
     'snapshotUrl' => '',
     'refreshEvents' => [],
-    'transportMode' => 'manual',
-    'pollInterval' => 5000,
+    'transportMode' => null,
+    'pollInterval' => null,
+    'allowedTransportModes' => [],
+    'reorderRefreshCooldownMs' => null,
+    'transport' => [],
     'cardClickEvent' => '',
     'reorderRoute' => '#',
 ])
 @php
+    $transportConfig = is_array($transport) ? $transport : [];
+    $resolvedTransportMode = $transportMode
+        ?? data_get($transportConfig, 'mode')
+        ?? KanbanConfig::transportMode();
+    $resolvedPollInterval = $pollInterval
+        ?? data_get($transportConfig, 'polling.interval')
+        ?? KanbanConfig::pollingInterval();
+    $resolvedAllowedTransportModes = $allowedTransportModes !== []
+        ? $allowedTransportModes
+        : (data_get($transportConfig, 'allowedModes') ?: KanbanConfig::allowedTransportModes());
+    $resolvedReorderRefreshCooldownMs = $reorderRefreshCooldownMs ?? KanbanConfig::reorderRefreshCooldown();
+    $resolvedTransportConfig = array_replace($transportConfig, [
+        'mode' => $resolvedTransportMode,
+        'allowedModes' => $resolvedAllowedTransportModes,
+        'polling' => array_replace((array) data_get($transportConfig, 'polling', []), [
+            'interval' => $resolvedPollInterval,
+        ]),
+        'signals' => array_replace((array) data_get($transportConfig, 'signals', []), [
+            'refresh' => data_get($transportConfig, 'signals.refresh', KanbanConfig::transportRefreshSignal()),
+        ]),
+        'events' => array_replace((array) data_get($transportConfig, 'events', []), [
+            'reorderRefresh' => data_get($transportConfig, 'events.reorderRefresh', KanbanConfig::reorderRefreshEvents()),
+        ]),
+    ]);
+
     $kanbanExpression = $syncEnabled
         ? 'kanbanBoard('.json_encode([
             'initialSnapshot' => $initialSnapshot,
             'snapshotUrl' => $snapshotUrl,
             'reorderUrl' => $reorderRoute,
             'refreshEvents' => $refreshEvents,
-            'transportMode' => $transportMode,
-            'pollInterval' => $pollInterval,
+            'transport' => $resolvedTransportConfig,
             'cardClickEvent' => $cardClickEvent,
-            'reorderRefreshCooldownMs' => 600,
+            'reorderRefreshCooldownMs' => $resolvedReorderRefreshCooldownMs,
         ], JSON_THROW_ON_ERROR).')'
         : 'cardsBuilder('.(int) $async.', '.json_encode($asyncUrl, JSON_THROW_ON_ERROR).')';
 @endphp
