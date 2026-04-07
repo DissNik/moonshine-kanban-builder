@@ -106,6 +106,21 @@ Drag reorder is persisted through a strict JSON payload:
 
 Client-side field names are also exposed through `KanbanReorderPayload::clientConfig()`.
 
+On the server side, parse the same JSON shape through the package value object:
+
+```php
+use DissNik\MoonShineKanBanBuilder\Support\KanbanReorderPayload;
+
+$payload = KanbanReorderPayload::fromArray($request->all());
+
+$payload->itemId;
+$payload->targetColumnId;
+$payload->previousColumnId;
+$payload->orderedIds;
+```
+
+`KanbanReorderPayload::fromArray()` throws `InvalidArgumentException` when any required field is missing or `ordered_ids` is not a non-empty list of card ids.
+
 ## Transport And Config
 
 Package defaults live in `config/moonshine-kanban-builder.php`:

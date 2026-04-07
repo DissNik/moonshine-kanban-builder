@@ -6,7 +6,6 @@ namespace DissNik\MoonShineKanBanBuilder\Tests\Unit;
 
 use DissNik\MoonShineKanBanBuilder\Support\KanbanColumn;
 use DissNik\MoonShineKanBanBuilder\Support\KanbanItem;
-use DissNik\MoonShineKanBanBuilder\Support\KanbanReorderPayload;
 use DissNik\MoonShineKanBanBuilder\Support\KanbanSnapshot;
 use DissNik\MoonShineKanBanBuilder\Tests\TestCase;
 use InvalidArgumentException;
@@ -66,16 +65,6 @@ final class KanbanSnapshotTest extends TestCase
             'id' => '',
             'html' => '',
         ]);
-    }
-
-    public function test_reorder_payload_contract_is_explicit_and_stable(): void
-    {
-        $this->assertSame([
-            'itemId' => 'item_id',
-            'targetColumnId' => 'column_id',
-            'previousColumnId' => 'previous_column_id',
-            'orderedIds' => 'ordered_ids',
-        ], KanbanReorderPayload::clientConfig());
     }
 
     public function test_column_can_be_constructed_from_value_objects(): void

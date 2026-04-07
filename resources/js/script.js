@@ -85,12 +85,16 @@ function haveSameIdsInSameCount(currentItems = [], incomingItems = []) {
 
 window.kanbanBoardScroll = function kanbanBoardScroll() {
     return {
+        dragOverHandler: null,
+
         init() {
+            this.destroy()
+
             const container = this.$el
             const edge = 100
             const speed = 30
 
-            const handleDragOver = (event) => {
+            this.dragOverHandler = (event) => {
                 const rect = container.getBoundingClientRect()
                 const x = event.clientX
 
@@ -101,7 +105,16 @@ window.kanbanBoardScroll = function kanbanBoardScroll() {
                 }
             }
 
-            document.addEventListener('dragover', handleDragOver)
+            document.addEventListener('dragover', this.dragOverHandler)
+        },
+
+        destroy() {
+            if (!this.dragOverHandler) {
+                return
+            }
+
+            document.removeEventListener('dragover', this.dragOverHandler)
+            this.dragOverHandler = null
         },
     }
 }
