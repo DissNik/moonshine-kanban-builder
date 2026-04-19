@@ -2,11 +2,24 @@
 
 .kanban-lift {
     box-shadow:none;
-    border-style: dashed;
+    border: 1px dashed rgba(209, 213, 219, 0.75);
+    border-radius: var(--ms-card-radius, var(--radius-lg, 0.5rem));
+    background: rgba(243, 244, 246, 0.45);
 
     * {
         @apply opacity-0;
     }
+}
+
+.kanban-ghost {
+    box-shadow:none;
+    border: 1px dashed rgba(209, 213, 219, 0.75);
+    border-radius: var(--ms-card-radius, var(--radius-lg, 0.5rem));
+    background: rgba(243, 244, 246, 0.45);
+}
+
+.kanban-ghost * {
+    opacity: 0;
 }
 
 .kanban-column {
@@ -15,6 +28,18 @@
 
 .kanban-draggable {
     @apply cursor-pointer w-full max-w-full overflow-visible;
+    touch-action: pan-x pan-y;
+}
+
+.kanban-fallback {
+    opacity: 0.95;
+    pointer-events: none;
+    z-index: 100000;
+    box-shadow: var(--shadow-lg, 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1));
+
+    * {
+        opacity: 1 !important;
+    }
 }
 
 .kanban-card-content {
@@ -36,8 +61,11 @@
     overflow-x: hidden;
     overflow-y: auto;
     overflow-y: overlay;
+    overscroll-behavior-y: contain;
     padding-inline: calc(var(--spacing, 0.25rem) * 2);
     padding-bottom: calc(var(--spacing, 0.25rem) * 2);
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-x pan-y;
 }
 
 .kanban-column-scroll:not(:has(.kanban-draggable))::before {
@@ -47,7 +75,7 @@
     align-items: center;
     justify-content: center;
     border: 1px dashed var(--color-gray-300, #d1d5db);
-    border-radius: var(--radius-sm, 0.25rem);
+    border-radius: var(--ms-card-radius, var(--radius-lg, 0.5rem));
     background: var(--color-gray-50, #f9fafb);
     color: var(--color-gray-500, #6b7280);
     font-size: 0.875rem;

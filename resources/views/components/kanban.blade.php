@@ -15,6 +15,15 @@
         x-data="kanbanBoard({{ Js::from($board) }})"
         x-init="init()"
         x-on:beforeunload.window="destroy()"
+        @pointerdown.capture="handleCardPointerDown($event)"
+        @pointermove.capture="handleCardPointerMove($event)"
+        @pointerup.capture="clearPointerTracking()"
+        @pointercancel.capture="clearPointerTracking()"
+        @touchstart.capture="handleCardPointerDown($event)"
+        @touchmove.capture="handleCardPointerMove($event)"
+        @touchend.capture="clearPointerTracking()"
+        @touchcancel.capture="clearPointerTracking()"
+        @click="handleBoardClick($event)"
         {{ $attributes }}
     >
         <x-moonshine::iterable-wrapper>
@@ -58,10 +67,9 @@
                                     <template x-for="card in column.items" :key="`${card.id}-${column.renderKey ?? 0}`">
                                         <article
                                             class="kanban-draggable handle"
-                                            :data-id="card.id"
-                                            @click="clickCard(card, $event)"
+                                            x-init="hydrateCard($el, card)"
                                         >
-                                            <div class="kanban-card-content" x-html="card.html"></div>
+                                            <div class="kanban-card-content"></div>
                                         </article>
                                     </template>
                                 </div>

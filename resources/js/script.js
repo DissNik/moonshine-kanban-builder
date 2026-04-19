@@ -83,6 +83,38 @@ function haveSameIdsInSameCount(currentItems = [], incomingItems = []) {
     return currentIds.every((id, index) => id === incomingIds[index])
 }
 
+function shouldUseTouchFallbackDrag() {
+    return window.matchMedia?.('(pointer: coarse)')?.matches
+        || 'ontouchstart' in window
+        || navigator.maxTouchPoints > 0
+}
+
+function syncFallbackClone(clone, item) {
+    if (!(clone instanceof HTMLElement) || !(item instanceof HTMLElement)) {
+        return
+    }
+
+    clone.innerHTML = item.innerHTML
+    clone.dataset.id = item.dataset.id || ''
+    clone.classList.remove('kanban-lift', 'kanban-touch-dragging')
+    clone.classList.add('kanban-fallback')
+
+    clone.querySelectorAll('*').forEach((element) => stripAlpineAttributes(element))
+    stripAlpineAttributes(clone)
+}
+
+function stripAlpineAttributes(element) {
+    Array.from(element.attributes).forEach((attribute) => {
+        if (
+            attribute.name.startsWith('x-')
+            || attribute.name.startsWith('@')
+            || attribute.name.startsWith(':')
+        ) {
+            element.removeAttribute(attribute.name)
+        }
+    })
+}
+
 window.kanbanBoardScroll = function kanbanBoardScroll() {
     return {
         dragOverHandler: null,
@@ -135,8 +167,11 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
         refreshInFlight: false,
         queuedRefreshForce: false,
         reorderInFlight: false,
+        touchFallbackDrag: shouldUseTouchFallbackDrag(),
         intervalId: null,
         sortables: [],
+        pointerDown: null,
+        suppressClickUntil: 0,
         refreshRequestId: 0,
         appliedRefreshRequestId: 0,
         refreshGeneration: 0,
@@ -454,6 +489,90 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
             }
         },
 
+        hydrateCard(element, card) {
+            if (!(element instanceof HTMLElement)) {
+                return
+            }
+
+            element.dataset.id = card?.id || ''
+            element.__kanbanCard = card || null
+            element.querySelector('.kanban-card-content')?.replaceChildren()
+
+            const content = element.querySelector('.kanban-card-content')
+
+            if (content) {
+                content.innerHTML = card?.html || ''
+            }
+
+            element.removeAttribute('x-init')
+        },
+
+        handleCardPointerDown(event) {
+            if (!event.target.closest('.kanban-draggable')) {
+                this.pointerDown = null
+
+                return
+            }
+
+            this.rememberPointerDown(event)
+        },
+
+        handleCardPointerMove(event) {
+            if (!this.pointerDown) {
+                return
+            }
+
+            this.rememberPointerMove(event)
+        },
+
+        rememberPointerDown(event) {
+            const pointer = event.changedTouches?.[0] ?? event.touches?.[0] ?? event
+
+            if (!pointer || typeof pointer.clientX !== 'number' || typeof pointer.clientY !== 'number') {
+                this.pointerDown = null
+
+                return
+            }
+
+            this.pointerDown = {
+                x: pointer.clientX,
+                y: pointer.clientY,
+            }
+        },
+
+        rememberPointerMove(event) {
+            if (!this.pointerDown) {
+                return
+            }
+
+            const pointer = event.changedTouches?.[0] ?? event.touches?.[0] ?? event
+
+            if (!pointer || typeof pointer.clientX !== 'number' || typeof pointer.clientY !== 'number') {
+                return
+            }
+
+            const deltaX = Math.abs(pointer.clientX - this.pointerDown.x)
+            const deltaY = Math.abs(pointer.clientY - this.pointerDown.y)
+
+            if (deltaX > 8 || deltaY > 8) {
+                this.suppressClickUntil = Date.now() + 400
+            }
+        },
+
+        clearPointerTracking() {
+            this.pointerDown = null
+        },
+
+        handleBoardClick(event) {
+            const cardElement = event.target.closest('.kanban-draggable')
+
+            if (!(cardElement instanceof HTMLElement)) {
+                return
+            }
+
+            this.clickCard(cardElement.__kanbanCard, event)
+        },
+
         async persistReorder(cardId, fromColumnId, toColumnId, orderedIds) {
             if (!this.reorderUrl) {
                 this.clearDrag()
@@ -500,6 +619,12 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
         },
 
         clickCard(card, event) {
+            if (Date.now() < this.suppressClickUntil) {
+                event.preventDefault()
+
+                return
+            }
+
             if (this.dragging || event.target.closest('button, a, input, textarea, select, label, form')) {
                 return
             }
@@ -559,8 +684,33 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
                     dataIdAttr: 'data-id',
                     ghostClass: 'kanban-ghost',
                     chosenClass: 'kanban-chosen',
+                    delay: 180,
+                    delayOnTouchOnly: true,
+                    touchStartThreshold: 8,
+                    fallbackTolerance: 6,
+                    forceFallback: this.touchFallbackDrag,
+                    fallbackClass: 'kanban-fallback',
+                    fallbackOnBody: true,
+                    setData: (dataTransfer, dragElement) => {
+                        const value = dragElement
+                            ?.querySelector?.('.lead-kanban-card__title')
+                            ?.textContent
+                            ?.trim()
+                            || dragElement?.dataset?.id
+                            || dragElement?.getAttribute?.('data-id')
+                            || ''
+
+                        dataTransfer.clearData()
+                        dataTransfer.setData('Text', value)
+                        dataTransfer.setData('text/plain', value)
+                    },
+
+                    onClone: (event) => {
+                        syncFallbackClone(event.clone, event.item)
+                    },
 
                     onStart: (event) => {
+                        syncFallbackClone(event.clone, event.item)
                         event.item.classList.add('kanban-lift')
                         this.startDrag(event.item.dataset.id, column.dataset.columnId)
                     },
