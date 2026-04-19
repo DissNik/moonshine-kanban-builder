@@ -26,6 +26,11 @@ class MoonShineKanBanBuilderServiceProvider extends ServiceProvider
             'moonshine-kanban-builder'
         );
 
+        $this->loadTranslationsFrom(
+            __DIR__ . '/../../resources/lang',
+            'moonshine-kanban-builder'
+        );
+
         $this->publishes(
             [__DIR__ . '/../../public' => public_path('vendor/moonshine-kanban-builder')],
             ['moonshine-kanban-builder', 'moonshine-kanban-builder-assets', 'laravel-assets']

@@ -53,6 +53,7 @@
                                 <div
                                     class="kanban-column-scroll flex flex-col gap-2"
                                     :data-column-id="column.id"
+                                    data-empty-label="{{ $translates['emptyColumn'] }}"
                                 >
                                     <template x-for="card in column.items" :key="`${card.id}-${column.renderKey ?? 0}`">
                                         <article
