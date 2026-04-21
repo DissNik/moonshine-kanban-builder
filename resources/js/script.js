@@ -115,6 +115,22 @@ function stripAlpineAttributes(element) {
     })
 }
 
+function initializeAlpineTree(element) {
+    if (!(element instanceof HTMLElement)) {
+        return
+    }
+
+    window.Alpine?.initTree?.(element)
+}
+
+function destroyAlpineTree(element) {
+    if (!(element instanceof HTMLElement)) {
+        return
+    }
+
+    window.Alpine?.destroyTree?.(element)
+}
+
 window.kanbanBoardScroll = function kanbanBoardScroll() {
     return {
         dragOverHandler: null,
@@ -496,12 +512,14 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
 
             element.dataset.id = card?.id || ''
             element.__kanbanCard = card || null
-            element.querySelector('.kanban-card-content')?.replaceChildren()
 
             const content = element.querySelector('.kanban-card-content')
 
             if (content) {
+                destroyAlpineTree(content)
+                content.replaceChildren()
                 content.innerHTML = card?.html || ''
+                initializeAlpineTree(content)
             }
 
             element.removeAttribute('x-init')
