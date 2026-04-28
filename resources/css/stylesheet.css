@@ -74,10 +74,13 @@
     min-height: 3.5rem;
     align-items: center;
     justify-content: center;
-    border: 1px dashed var(--color-gray-300, #d1d5db);
+    border: 1px dashed var(--color-base-stroke, var(--color-base-text));
+    border-color: color-mix(in oklab, var(--color-base-stroke, var(--color-base-text)) 72%, transparent);
     border-radius: var(--ms-card-radius, var(--radius-lg, 0.5rem));
-    background: var(--color-gray-50, #f9fafb);
-    color: var(--color-gray-500, #6b7280);
+    background: var(--color-base);
+    background: color-mix(in oklab, var(--color-base) 97%, var(--color-base-text));
+    color: var(--color-base-text);
+    color: color-mix(in oklab, var(--color-base-text) 52%, transparent);
     font-size: 0.875rem;
     line-height: 1.25rem;
     text-align: center;
