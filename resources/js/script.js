@@ -1,4 +1,9 @@
 import Sortable from 'sortablejs'
+import {
+    columnOrderRequestPayload,
+    reorderMovableColumns,
+    withColumnOrderVersion,
+} from './column-order.js'
 
 if (!Sortable.__kanbanDestroyedInstanceGuardApplied) {
     const originalHandleEvent = Sortable.prototype.handleEvent
@@ -174,18 +179,22 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
     const pollInterval = normalizePositiveNumber(transport.polling?.interval, 0)
     const reorderRefreshCooldownMs = normalizePositiveNumber(config.reorderRefreshCooldownMs, 0)
     const reorderRequest = config.reorderRequest ?? {}
+    const columnReorderRequest = config.columnReorderRequest ?? {}
 
     return {
         columns: config.initialSnapshot?.columns ?? [],
         version: config.initialSnapshot?.version ?? null,
+        snapshotMeta: config.initialSnapshot?.meta ?? {},
         dragging: null,
         pendingRefresh: false,
         refreshInFlight: false,
         queuedRefreshForce: false,
         reorderInFlight: false,
+        columnReorderInFlight: false,
         touchFallbackDrag: shouldUseTouchFallbackDrag(),
         intervalId: null,
         sortables: [],
+        columnSortable: null,
         pointerDown: null,
         suppressClickUntil: 0,
         refreshRequestId: 0,
@@ -194,6 +203,7 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
         renderNonce: 0,
         snapshotUrl: config.snapshotUrl ?? '',
         reorderUrl: config.reorderUrl ?? '',
+        columnReorderUrl: config.columnReorderUrl ?? '',
         refreshEvents: normalizeEvents(
             config.refreshEvents,
             normalizeEvents(transport.signals?.refresh),
@@ -208,6 +218,7 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
         deferredRefreshTimeoutId: null,
         initialized: false,
         reorderRequest,
+        columnReorderRequest,
 
         init() {
             if (this.initialized) {
@@ -232,7 +243,7 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
 
             if (this.transportMode === 'polling' && this.pollInterval > 0) {
                 this.intervalId = window.setInterval(() => {
-                    if (!document.hidden && !this.reorderInFlight) {
+                    if (!document.hidden && !this.reorderInFlight && !this.columnReorderInFlight) {
                         void this.refresh()
                     }
                 }, this.pollInterval)
@@ -415,7 +426,7 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
                 return false
             }
 
-            if ((this.dragging || this.reorderInFlight) && !allowDuringDrag) {
+            if ((this.dragging || this.reorderInFlight || this.columnReorderInFlight) && !allowDuringDrag) {
                 this.pendingRefresh = true
 
                 return false
@@ -458,6 +469,7 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
 
                 if (!payload.changed) {
                     this.version = payload.version ?? this.version
+                    this.snapshotMeta = payload.meta ?? this.snapshotMeta
                     this.appliedRefreshRequestId = requestId
 
                     return true
@@ -466,6 +478,7 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
                 const scrollState = this.captureScrollState()
 
                 this.version = payload.version ?? null
+                this.snapshotMeta = payload.meta ?? {}
                 this.columns = this.mergeSnapshotColumns(payload.columns ?? [])
                 this.appliedRefreshRequestId = requestId
 
@@ -657,6 +670,72 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
         destroySortables() {
             this.sortables.forEach((sortable) => sortable.destroy())
             this.sortables = []
+
+            if (this.columnSortable) {
+                this.columnSortable.destroy()
+                this.columnSortable = null
+            }
+        },
+
+        async persistColumnOrder() {
+            if (!this.columnReorderUrl || this.columnReorderInFlight) {
+                return
+            }
+
+            const previousColumns = [...this.columns]
+            const orderedColumnIds = Array.from(
+                this.$refs.columns?.querySelectorAll(':scope > .kanban-column[data-column-locked="0"]') ?? [],
+            )
+                .map((column) => column.dataset.kanbanColumnId)
+                .filter((id) => typeof id === 'string' && id !== '')
+
+            let nextColumns
+
+            try {
+                nextColumns = reorderMovableColumns(previousColumns, orderedColumnIds)
+            } catch (error) {
+                this.columns = this.withRenderKeys(previousColumns)
+                this.$nextTick(() => this.bindSortables())
+                console.error('Column reorder error:', error)
+
+                return
+            }
+
+            this.columnReorderInFlight = true
+            this.blockRefreshTemporarily()
+
+            try {
+                const response = await axios.post(
+                    this.columnReorderUrl,
+                    columnOrderRequestPayload(
+                        nextColumns,
+                        this.columnReorderRequest,
+                        this.snapshotMeta.column_order_version ?? null,
+                    ),
+                    {
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            Accept: 'application/json, text/plain, */*',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                        },
+                    },
+                )
+
+                this.columns = this.withRenderKeys(nextColumns)
+                this.snapshotMeta = withColumnOrderVersion(this.snapshotMeta, response.data ?? {})
+                dispatchBrowserEvents(this.transport.events?.reorderRefresh, { orderedColumnIds })
+            } catch (error) {
+                this.columns = this.withRenderKeys(previousColumns)
+                console.error('Column reorder error:', error)
+            } finally {
+                this.columnReorderInFlight = false
+                this.$nextTick(() => this.bindSortables())
+
+                if (this.pendingRefresh) {
+                    this.pendingRefresh = false
+                    this.scheduleDeferredRefresh(true)
+                }
+            }
         },
 
         async handleSortableChange(event, fallbackColumnId) {
@@ -756,6 +835,17 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
 
                 this.sortables.push(sortable)
             })
+
+            if (this.columnReorderUrl && this.$refs.columns) {
+                this.columnSortable = Sortable.create(this.$refs.columns, {
+                    animation: 150,
+                    handle: '.kanban-column-handle',
+                    draggable: '.kanban-column[data-column-locked="0"]',
+                    ghostClass: 'kanban-column-ghost',
+                    chosenClass: 'kanban-column-chosen',
+                    onEnd: () => void this.persistColumnOrder(),
+                })
+            }
         },
     }
 }

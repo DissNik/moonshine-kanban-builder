@@ -31,6 +31,8 @@ final class KanbanSnapshotTest extends TestCase
                             'form_url' => '/leads/form/lead-1',
                         ],
                     ],
+                    'locked' => false,
+                    'header_html' => '',
                 ],
             ],
         ]);
@@ -52,6 +54,8 @@ final class KanbanSnapshotTest extends TestCase
                             'html' => '<div>Lead</div>',
                         ],
                     ],
+                    'locked' => false,
+                    'header_html' => '',
                 ],
             ],
         ], $snapshot->toArray());
@@ -83,6 +87,29 @@ final class KanbanSnapshotTest extends TestCase
 
         $this->assertSame('qualification', $column->toArray()['id']);
         $this->assertSame('Lead 2', $column->toArray()['items'][0]['title']);
+    }
+
+    public function test_column_serializes_lock_state_and_trusted_header_markup(): void
+    {
+        $column = new KanbanColumn(
+            id: 'basket',
+            label: 'Basket',
+            items: [],
+            locked: true,
+            headerHtml: '<button type="button">Actions</button>',
+        );
+
+        $this->assertSame([
+            'id' => 'basket',
+            'label' => 'Basket',
+            'items' => [],
+            'locked' => true,
+            'header_html' => '<button type="button">Actions</button>',
+        ], $column->toArray());
+        $this->assertSame(
+            $column->toArray(),
+            KanbanColumn::fromArray($column->toArray())->toArray(),
+        );
     }
 
     public function test_snapshot_rejects_duplicate_column_ids(): void

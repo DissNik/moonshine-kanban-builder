@@ -7,6 +7,7 @@ namespace DissNik\MoonShineKanBanBuilder\Components;
 use Closure;
 use DissNik\MoonShineKanBanBuilder\Contracts\KanbanTransportContract;
 use DissNik\MoonShineKanBanBuilder\Support\KanbanConfig;
+use DissNik\MoonShineKanBanBuilder\Support\KanbanColumnOrderPayload;
 use DissNik\MoonShineKanBanBuilder\Support\KanbanReorderPayload;
 use DissNik\MoonShineKanBanBuilder\Support\KanbanSnapshot;
 use DissNik\MoonShineKanBanBuilder\Support\NullKanbanTransport;
@@ -41,6 +42,8 @@ final class KanBanBuilder extends IterableComponent
 
     protected string $reorderUrl = '';
 
+    protected string $columnReorderUrl = '';
+
     /**
      * @var list<string>
      */
@@ -55,6 +58,8 @@ final class KanBanBuilder extends IterableComponent
     protected ?Closure $topLeft = null;
 
     protected ?Closure $topRight = null;
+
+    protected ?Closure $afterColumns = null;
 
     public function __construct()
     {
@@ -93,6 +98,13 @@ final class KanBanBuilder extends IterableComponent
     public function reorderUrl(string $url): static
     {
         $this->reorderUrl = $url;
+
+        return $this;
+    }
+
+    public function columnReorderUrl(string $url): static
+    {
+        $this->columnReorderUrl = $url;
 
         return $this;
     }
@@ -153,6 +165,16 @@ final class KanBanBuilder extends IterableComponent
         return $this;
     }
 
+    /**
+     * @param Closure(self): list<ComponentContract> $callback
+     */
+    public function afterColumns(Closure $callback): static
+    {
+        $this->afterColumns = $callback;
+
+        return $this;
+    }
+
     private function getTopLeft(): Components
     {
         $components = is_null($this->topLeft) ? [] : call_user_func($this->topLeft, $this);
@@ -163,6 +185,13 @@ final class KanBanBuilder extends IterableComponent
     private function getTopRight(): Components
     {
         $components = is_null($this->topRight) ? [] : call_user_func($this->topRight, $this);
+
+        return Components::make($components);
+    }
+
+    private function getAfterColumns(): Components
+    {
+        $components = is_null($this->afterColumns) ? [] : call_user_func($this->afterColumns, $this);
 
         return Components::make($components);
     }
@@ -185,11 +214,13 @@ final class KanBanBuilder extends IterableComponent
             'initialSnapshot' => $this->snapshot,
             'snapshotUrl' => $this->snapshotUrl,
             'reorderUrl' => $this->reorderUrl,
+            'columnReorderUrl' => $this->columnReorderUrl,
             'refreshEvents' => $this->refreshEvents,
             'transport' => $transport,
             'cardClickEvent' => $this->cardClickEvent,
             'reorderRefreshCooldownMs' => KanbanConfig::reorderRefreshCooldown(),
             'reorderRequest' => KanbanReorderPayload::clientConfig(),
+            'columnReorderRequest' => KanbanColumnOrderPayload::clientConfig(),
         ];
     }
 
@@ -203,6 +234,7 @@ final class KanBanBuilder extends IterableComponent
             'name' => $this->getName(),
             'topLeft' => $this->getTopLeft(),
             'topRight' => $this->getTopRight(),
+            'afterColumns' => $this->getAfterColumns(),
             'translates' => $this->getTranslates(),
         ];
     }

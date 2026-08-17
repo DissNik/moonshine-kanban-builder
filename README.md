@@ -1,6 +1,6 @@
 # MoonShine Kanban Builder
 
-`dissnik/moonshine-kanban-builder` is a snapshot-driven MoonShine kanban component.
+`dissnik/moonshine-kanban-builder` 2.x is a snapshot-driven MoonShine kanban component with independent card and column sorting.
 
 This package now has a single public integration path:
 
@@ -41,6 +41,35 @@ KanBanBuilder::make()
     ->cardClickEvent('lead-kanban:card-open');
 ```
 
+Column management is opt-in. A host can add draggable/locked columns, trusted header actions and an action after the final column:
+
+```php
+use DissNik\MoonShineKanBanBuilder\Support\KanbanColumn;
+use MoonShine\UI\Components\ActionButton;
+
+$columns = [
+    new KanbanColumn(
+        id: 'new',
+        label: 'New',
+        items: [],
+        headerHtml: view('kanban.column-actions')->render(),
+    ),
+    new KanbanColumn(
+        id: 'basket',
+        label: 'Basket',
+        items: [],
+        locked: true,
+    ),
+];
+
+KanBanBuilder::make()
+    ->snapshot(['columns' => $columns, 'meta' => ['column_order_version' => 7]])
+    ->columnReorderUrl('/kanban/columns/reorder')
+    ->afterColumns(fn (): array => [
+        ActionButton::make('Add column', '#add-column'),
+    ]);
+```
+
 The consumer remains responsible for:
 
 - generating the snapshot payload;
@@ -63,6 +92,8 @@ Minimal example:
     {
       "id": "new",
       "label": "New",
+      "locked": false,
+      "header_html": "<button type=\"button\">...</button>",
       "items": [
         {
           "id": "lead-1",
@@ -80,6 +111,8 @@ Minimal example:
 Rules:
 
 - `columns[].id` is the stable column identity used by the JS runtime and reorder protocol.
+- `columns[].locked` excludes a column from column ordering. Locked columns are rendered after movable columns.
+- `columns[].header_html` is an optional trusted, host-rendered action area.
 - `items[].id` is the stable card identity used for DOM diffing and reorder persistence.
 - `items[].html` is consumer-rendered card markup injected into the board as-is.
 - extra item keys are preserved and passed back to `cardClickEvent()` as `event.detail.card`.
@@ -120,6 +153,25 @@ $payload->orderedIds;
 ```
 
 `KanbanReorderPayload::fromArray()` throws `InvalidArgumentException` when any required field is missing or `ordered_ids` is not a non-empty list of card ids.
+
+### Column reorder protocol
+
+When `columnReorderUrl()` is configured, dragging a column posts only movable IDs and the host's optimistic-lock version:
+
+```json
+{
+  "ordered_column_ids": ["qualification", "new"],
+  "version": "7"
+}
+```
+
+Return the next version as `{"version":"8"}`. The package stores it in `snapshot.meta.column_order_version` for the next request. Parse or generate field names with `KanbanColumnOrderPayload`.
+
+If persistence fails, the browser restores the previous column order. Column sorting is not initialized unless the host passes `columnReorderUrl()`.
+
+### Trusted markup boundary
+
+`items[].html`, `columns[].header_html`, and `afterColumns()` are trusted host-rendered extension points. They do not sanitize HTML. Never pass user-controlled strings directly; escape values in server-side views or construct controls with MoonShine components.
 
 ## Transport And Config
 
@@ -186,6 +238,10 @@ This refactor intentionally removed the old package API:
 - snapshot columns now use `id` instead of `status`.
 - snapshot items now use `html` instead of `card_html`.
 - reorder now sends JSON `ordered_ids` instead of CSV `data`, and `column_id` instead of `parent`.
+- 2.x column snapshots always serialize `locked` and `header_html`.
+- column sorting uses a separate endpoint and `meta.column_order_version`; it does not reuse the card snapshot version.
+
+See [UPGRADE.md](UPGRADE.md) for the 1.x to 2.x checklist.
 
 ## Asset Publishing
 
@@ -204,6 +260,7 @@ Package tests:
 
 ```bash
 vendor/bin/phpunit -c phpunit.xml.dist
+npm run test:js
 ```
 
 Consumer validation:

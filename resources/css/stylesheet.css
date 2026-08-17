@@ -26,6 +26,22 @@
     @apply flex-1 min-w-xs max-w-xs;
 }
 
+.kanban-column-handle {
+    cursor: grab;
+    flex: 0 0 auto;
+    color: var(--color-base-text);
+    opacity: 0.55;
+    touch-action: none;
+}
+
+.kanban-column-handle:active {
+    cursor: grabbing;
+}
+
+.kanban-after-columns {
+    flex: 0 0 auto;
+}
+
 .kanban-draggable {
     @apply cursor-pointer w-full max-w-full overflow-visible;
     touch-action: pan-x pan-y;

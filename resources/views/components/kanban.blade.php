@@ -3,6 +3,7 @@
     'name' => 'default',
     'topLeft' => null,
     'topRight' => null,
+    'afterColumns' => null,
     'translates' => [],
 ])
 
@@ -42,7 +43,7 @@
                     x-data="kanbanBoardScroll"
                     x-ref="boardScroll"
                 >
-                    <div class="flex gap-2 select-none items-start min-w-max">
+                    <div class="flex gap-2 select-none items-start min-w-max" x-ref="columns">
                         <template x-if="! Array.isArray(columns) || columns.length === 0">
                             <x-moonshine::alert type="default" class="my-4" icon="s.no-symbol">
                                 {{ $translates['notfound'] }}
@@ -52,11 +53,22 @@
                         <template x-for="column in columns" :key="`${column.id}-${column.renderKey ?? 0}`">
                             <section
                                 class="box space-elements kanban-column p-0"
+                                :data-kanban-column-id="column.id"
+                                :data-column-locked="column.locked ? '1' : '0'"
                                 style="min-width: 20rem; max-width: 20rem; width: 20rem; flex: 0 0 20rem;"
                             >
                                 <div class="kanban-column-header flex justify-between items-center gap-2">
+                                    <button
+                                        x-show="columnReorderUrl && ! column.locked"
+                                        type="button"
+                                        class="kanban-column-handle"
+                                        :aria-label="column.label"
+                                    >
+                                        ⋮⋮
+                                    </button>
                                     <h4 x-text="column.label"></h4>
                                     <span class="badge badge-gray" x-text="(column.items || []).length"></span>
+                                    <div x-show="column.header_html" x-html="column.header_html"></div>
                                 </div>
 
                                 <div
@@ -75,6 +87,10 @@
                                 </div>
                             </section>
                         </template>
+
+                        <div class="kanban-after-columns" data-after-columns-slot>
+                            {!! $afterColumns ?? '' !!}
+                        </div>
                     </div>
                 </div>
             </div>

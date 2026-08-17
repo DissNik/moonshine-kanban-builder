@@ -15,6 +15,8 @@ final readonly class KanbanColumn
         public string $id,
         public string $label,
         public array $items = [],
+        public bool $locked = false,
+        public string $headerHtml = '',
     ) {
         if ($this->id === '') {
             throw new InvalidArgumentException('Kanban column id must not be empty.');
@@ -38,7 +40,7 @@ final readonly class KanbanColumn
     }
 
     /**
-     * @param array{id?: mixed, label?: mixed, items?: mixed} $payload
+     * @param array{id?: mixed, label?: mixed, items?: mixed, locked?: mixed, header_html?: mixed} $payload
      */
     public static function fromArray(array $payload): self
     {
@@ -53,11 +55,13 @@ final readonly class KanbanColumn
             id: isset($payload['id']) ? (string) $payload['id'] : '',
             label: isset($payload['label']) ? (string) $payload['label'] : '',
             items: $items,
+            locked: (bool) ($payload['locked'] ?? false),
+            headerHtml: isset($payload['header_html']) ? (string) $payload['header_html'] : '',
         );
     }
 
     /**
-     * @return array{id: string, label: string, items: list<array<string, mixed>>}
+     * @return array{id: string, label: string, items: list<array<string, mixed>>, locked: bool, header_html: string}
      */
     public function toArray(): array
     {
@@ -68,6 +72,8 @@ final readonly class KanbanColumn
                 static fn (KanbanItem $item): array => $item->toArray(),
                 $this->items,
             ),
+            'locked' => $this->locked,
+            'header_html' => $this->headerHtml,
         ];
     }
 }
