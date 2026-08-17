@@ -58,14 +58,16 @@
                                 style="min-width: 20rem; max-width: 20rem; width: 20rem; flex: 0 0 20rem;"
                             >
                                 <div class="kanban-column-header flex justify-between items-center gap-2">
-                                    <button
-                                        x-show="columnReorderUrl && ! column.locked"
-                                        type="button"
-                                        class="kanban-column-handle"
-                                        :aria-label="column.label"
-                                    >
-                                        ⋮⋮
-                                    </button>
+                                    @if(filled(data_get($board, 'columnReorderUrl')))
+                                        <button
+                                            x-show="! column.locked"
+                                            type="button"
+                                            class="kanban-column-handle"
+                                            :aria-label="column.label"
+                                        >
+                                            ⋮⋮
+                                        </button>
+                                    @endif
                                     <h4 x-text="column.label"></h4>
                                     <span class="badge badge-gray" x-text="(column.items || []).length"></span>
                                     <div x-show="column.header_html" x-html="column.header_html"></div>
