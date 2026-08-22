@@ -40,7 +40,7 @@
                 <div
                     class="w-full overflow-x-auto"
                     style="scrollbar-width: thin; -webkit-overflow-scrolling: touch; overflow-x: scroll;"
-                    x-data="kanbanBoardScroll"
+                    x-init="initBoardScroll($el)"
                     x-ref="boardScroll"
                 >
                     <div class="flex gap-2 select-none items-start min-w-max" x-ref="columns">
@@ -57,20 +57,24 @@
                                 :data-column-locked="column.locked ? '1' : '0'"
                                 style="min-width: 20rem; max-width: 20rem; width: 20rem; flex: 0 0 20rem;"
                             >
-                                <div class="kanban-column-header flex justify-between items-center gap-2">
+                                <div @class([
+                                    'kanban-column-header',
+                                    'kanban-column-header--reorderable' => filled(data_get($board, 'columnReorderUrl')),
+                                ]) :class="{ 'kanban-column-header--locked': column.locked }">
                                     @if(filled(data_get($board, 'columnReorderUrl')))
-                                        <button
-                                            x-show="! column.locked"
-                                            type="button"
-                                            class="kanban-column-handle"
-                                            :aria-label="column.label"
-                                        >
-                                            ⋮⋮
-                                        </button>
+                                        <span x-show="! column.locked" class="kanban-column-handle-slot">
+                                            <button
+                                                type="button"
+                                                class="kanban-column-handle"
+                                                :aria-label="{{ Js::from($translates['reorderColumn']) }}.replace(':column', column.label)"
+                                            >
+                                                ⋮⋮
+                                            </button>
+                                        </span>
                                     @endif
-                                    <h4 x-text="column.label"></h4>
+                                    <h4 class="kanban-column-title" x-text="column.label"></h4>
                                     <span class="badge badge-gray" x-text="(column.items || []).length"></span>
-                                    <div x-show="column.header_html" x-html="column.header_html"></div>
+                                    <div class="kanban-column-actions" x-show="column.header_html" x-html="column.header_html"></div>
                                 </div>
 
                                 <div

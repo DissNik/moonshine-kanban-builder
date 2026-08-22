@@ -27,8 +27,15 @@
 }
 
 .kanban-column-handle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1rem;
+    min-width: 1rem;
+    padding: 0;
+    border: 0;
+    background: transparent;
     cursor: grab;
-    flex: 0 0 auto;
     color: var(--color-base-text);
     opacity: 0.55;
     touch-action: none;
@@ -40,6 +47,31 @@
 
 .kanban-after-columns {
     flex: 0 0 auto;
+}
+
+.kanban-column-lift,
+.kanban-column-ghost {
+    box-sizing: border-box;
+    box-shadow: none;
+    border: 1px dashed rgba(209, 213, 219, 0.75);
+    border-radius: var(--ms-card-radius, var(--radius-lg, 0.5rem));
+    background: rgba(243, 244, 246, 0.45);
+}
+
+.kanban-column-lift > *,
+.kanban-column-ghost > * {
+    opacity: 0;
+}
+
+.kanban-column-fallback {
+    opacity: 0.92;
+    pointer-events: none;
+    z-index: 100000;
+    box-shadow: var(--shadow-lg, 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1));
+}
+
+.kanban-column-fallback > * {
+    opacity: 1 !important;
 }
 
 .kanban-draggable {
@@ -67,8 +99,41 @@
 }
 
 .kanban-column-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    column-gap: calc(var(--spacing, 0.25rem) * 2);
+    min-height: 2.75rem;
     padding: calc(var(--spacing, 0.25rem) * 2);
     padding-bottom: 0;
+}
+
+.kanban-column-header--reorderable {
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+}
+
+.kanban-column-header--locked {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+}
+
+.kanban-column-handle-slot {
+    display: inline-flex;
+    width: 1rem;
+    min-width: 1rem;
+    align-items: center;
+    justify-content: center;
+}
+
+.kanban-column-title {
+    min-width: 0;
+    margin: 0;
+    line-height: 1.35;
+}
+
+.kanban-column-actions {
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .kanban-column-scroll {

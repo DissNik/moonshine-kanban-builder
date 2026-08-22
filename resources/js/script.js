@@ -4,6 +4,11 @@ import {
     reorderMovableColumns,
     withColumnOrderVersion,
 } from './column-order.js'
+import { horizontalWheelScrollLeft } from './board-scroll.js'
+import {
+    isTopLevelColumnMove,
+    sortablePositionChanged,
+} from './column-drag.js'
 
 if (!Sortable.__kanbanDestroyedInstanceGuardApplied) {
     const originalHandleEvent = Sortable.prototype.handleEvent
@@ -108,6 +113,22 @@ function syncFallbackClone(clone, item) {
     stripAlpineAttributes(clone)
 }
 
+function syncColumnFallbackClone(clone) {
+    if (!(clone instanceof HTMLElement)) {
+        return
+    }
+
+    clone.classList.remove(
+        'kanban-column-lift',
+        'kanban-column-ghost',
+        'kanban-column-chosen',
+    )
+    clone.classList.add('kanban-column-fallback')
+    clone.querySelectorAll('*').forEach((element) => stripAlpineAttributes(element))
+    stripAlpineAttributes(clone)
+    clone.setAttribute('x-ignore', '')
+}
+
 function stripAlpineAttributes(element) {
     Array.from(element.attributes).forEach((attribute) => {
         if (
@@ -136,42 +157,6 @@ function destroyAlpineTree(element) {
     window.Alpine?.destroyTree?.(element)
 }
 
-window.kanbanBoardScroll = function kanbanBoardScroll() {
-    return {
-        dragOverHandler: null,
-
-        init() {
-            this.destroy()
-
-            const container = this.$el
-            const edge = 100
-            const speed = 30
-
-            this.dragOverHandler = (event) => {
-                const rect = container.getBoundingClientRect()
-                const x = event.clientX
-
-                if (x < rect.left + edge) {
-                    container.scrollLeft -= speed
-                } else if (x > rect.right - edge) {
-                    container.scrollLeft += speed
-                }
-            }
-
-            document.addEventListener('dragover', this.dragOverHandler)
-        },
-
-        destroy() {
-            if (!this.dragOverHandler) {
-                return
-            }
-
-            document.removeEventListener('dragover', this.dragOverHandler)
-            this.dragOverHandler = null
-        },
-    }
-}
-
 window.kanbanBoard = function kanbanBoard(config = {}) {
     const transport = config.transport ?? {}
     const allowedTransportModes = normalizeEvents(transport.allowedModes)
@@ -191,10 +176,14 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
         queuedRefreshForce: false,
         reorderInFlight: false,
         columnReorderInFlight: false,
+        columnDragging: false,
         touchFallbackDrag: shouldUseTouchFallbackDrag(),
         intervalId: null,
         sortables: [],
         columnSortable: null,
+        boardScrollContainer: null,
+        boardScrollDragOverHandler: null,
+        boardScrollWheelHandler: null,
         pointerDown: null,
         suppressClickUntil: 0,
         refreshRequestId: 0,
@@ -243,7 +232,12 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
 
             if (this.transportMode === 'polling' && this.pollInterval > 0) {
                 this.intervalId = window.setInterval(() => {
-                    if (!document.hidden && !this.reorderInFlight && !this.columnReorderInFlight) {
+                    if (
+                        !document.hidden
+                        && !this.reorderInFlight
+                        && !this.columnReorderInFlight
+                        && !this.columnDragging
+                    ) {
                         void this.refresh()
                     }
                 }, this.pollInterval)
@@ -271,11 +265,63 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
             }
 
             this.destroySortables()
+            this.destroyBoardScroll()
+            this.columnDragging = false
             this.initialized = false
 
             if (this.$el?.__kanbanBoardInstance === this) {
                 delete this.$el.__kanbanBoardInstance
             }
+        },
+
+        initBoardScroll(container) {
+            this.destroyBoardScroll()
+            this.boardScrollContainer = container
+            this.boardScrollDragOverHandler = (event) => {
+                const rect = container.getBoundingClientRect()
+                const edge = 100
+                const speed = 30
+
+                if (event.clientX < rect.left + edge) {
+                    container.scrollLeft -= speed
+                } else if (event.clientX > rect.right - edge) {
+                    container.scrollLeft += speed
+                }
+            }
+            this.boardScrollWheelHandler = (event) => {
+                const nextScrollLeft = horizontalWheelScrollLeft({
+                    deltaX: event.deltaX,
+                    deltaY: event.deltaY,
+                    ctrlKey: event.ctrlKey,
+                    scrollLeft: container.scrollLeft,
+                    clientWidth: container.clientWidth,
+                    scrollWidth: container.scrollWidth,
+                })
+
+                if (nextScrollLeft === null) {
+                    return
+                }
+
+                event.preventDefault()
+                container.scrollLeft = nextScrollLeft
+            }
+
+            document.addEventListener('dragover', this.boardScrollDragOverHandler)
+            container.addEventListener('wheel', this.boardScrollWheelHandler, { passive: false })
+        },
+
+        destroyBoardScroll() {
+            if (this.boardScrollDragOverHandler) {
+                document.removeEventListener('dragover', this.boardScrollDragOverHandler)
+            }
+
+            if (this.boardScrollContainer && this.boardScrollWheelHandler) {
+                this.boardScrollContainer.removeEventListener('wheel', this.boardScrollWheelHandler)
+            }
+
+            this.boardScrollContainer = null
+            this.boardScrollDragOverHandler = null
+            this.boardScrollWheelHandler = null
         },
 
         isRefreshBlocked() {
@@ -421,12 +467,21 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
             })
         },
 
+        isRefreshBusy() {
+            return Boolean(
+                this.dragging
+                || this.columnDragging
+                || this.reorderInFlight
+                || this.columnReorderInFlight
+            )
+        },
+
         async refresh({ force = false, allowDuringDrag = false } = {}) {
             if (!this.snapshotUrl) {
                 return false
             }
 
-            if ((this.dragging || this.reorderInFlight || this.columnReorderInFlight) && !allowDuringDrag) {
+            if (this.isRefreshBusy() && !allowDuringDrag) {
                 this.pendingRefresh = true
 
                 return false
@@ -458,6 +513,12 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
                 })
 
                 const payload = response.data || {}
+
+                if (this.isRefreshBusy() && !allowDuringDrag) {
+                    this.pendingRefresh = true
+
+                    return false
+                }
 
                 if (generation !== this.refreshGeneration) {
                     return false
@@ -515,6 +576,27 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
                 if (!this.isRefreshBlocked()) {
                     void this.refresh({ force: true })
                 }
+            }
+        },
+
+        clearColumnDrag() {
+            this.columnDragging = false
+
+            if (
+                !this.pendingRefresh
+                || this.dragging
+                || this.reorderInFlight
+                || this.columnReorderInFlight
+            ) {
+                return
+            }
+
+            this.pendingRefresh = false
+
+            if (this.isRefreshBlocked()) {
+                this.scheduleDeferredRefresh(true)
+            } else {
+                void this.refresh({ force: true })
             }
         },
 
@@ -839,11 +921,48 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
             if (this.columnReorderUrl && this.$refs.columns) {
                 this.columnSortable = Sortable.create(this.$refs.columns, {
                     animation: 150,
+                    direction: 'horizontal',
                     handle: '.kanban-column-handle',
                     draggable: '.kanban-column[data-column-locked="0"]',
+                    swapThreshold: 0.65,
+                    invertSwap: true,
+                    invertedSwapThreshold: 0.65,
                     ghostClass: 'kanban-column-ghost',
                     chosenClass: 'kanban-column-chosen',
-                    onEnd: () => void this.persistColumnOrder(),
+                    forceFallback: true,
+                    fallbackTolerance: 4,
+                    fallbackClass: 'kanban-column-fallback',
+                    fallbackOnBody: true,
+                    onMove: (event) => isTopLevelColumnMove({
+                        root: this.$refs.columns,
+                        dragged: event.dragged,
+                        from: event.from,
+                        to: event.to,
+                    }),
+                    onChoose: (event) => {
+                        event.item.setAttribute('x-ignore', '')
+                    },
+                    onUnchoose: (event) => {
+                        event.item.removeAttribute('x-ignore')
+                    },
+                    onClone: (event) => {
+                        syncColumnFallbackClone(event.clone)
+                    },
+                    onStart: (event) => {
+                        syncColumnFallbackClone(event.clone)
+                        event.item.classList.add('kanban-column-lift')
+                        this.columnDragging = true
+                    },
+                    onEnd: (event) => {
+                        event.item.removeAttribute('x-ignore')
+                        event.item.classList.remove('kanban-column-lift')
+
+                        if (sortablePositionChanged(event)) {
+                            void this.persistColumnOrder()
+                        }
+
+                        this.clearColumnDrag()
+                    },
                 })
             }
         },

@@ -28,6 +28,7 @@ final class KanBanBuilder extends IterableComponent
     protected array $translates = [
         'notfound' => 'moonshine::ui.notfound',
         'emptyColumn' => 'moonshine-kanban-builder::ui.empty_column',
+        'reorderColumn' => 'moonshine-kanban-builder::ui.reorder_column',
     ];
 
     /**
@@ -74,9 +75,17 @@ final class KanBanBuilder extends IterableComponent
     protected function assets(): array
     {
         return [
-            Js::make('vendor/moonshine-kanban-builder/js/script.js'),
-            Css::make('vendor/moonshine-kanban-builder/css/stylesheet.css'),
+            Js::make('vendor/moonshine-kanban-builder/js/script.js?v='.$this->assetVersion('js/script.js')),
+            Css::make('vendor/moonshine-kanban-builder/css/stylesheet.css?v='.$this->assetVersion('css/stylesheet.css')),
         ];
+    }
+
+    private function assetVersion(string $relativePath): string
+    {
+        $path = dirname(__DIR__, 2).'/public/'.$relativePath;
+        $hash = is_file($path) ? hash_file('sha256', $path) : false;
+
+        return is_string($hash) ? substr($hash, 0, 12) : '2';
     }
 
     public function snapshot(KanbanSnapshot|array $snapshot): static
