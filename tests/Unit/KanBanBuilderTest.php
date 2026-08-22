@@ -43,7 +43,7 @@ final class KanBanBuilderTest extends TestCase
         self::assertStringContainsString('?v=', $assets[1]->getLink());
     }
 
-    public function test_view_separates_column_drag_identity_from_card_drop_identity(): void
+    public function test_view_uses_the_column_header_as_the_drag_handle(): void
     {
         $view = file_get_contents(dirname(__DIR__, 2) . '/resources/views/components/kanban.blade.php');
 
@@ -51,11 +51,9 @@ final class KanBanBuilderTest extends TestCase
         self::assertStringContainsString('x-ref="columns"', $view);
         self::assertStringNotContainsString('x-data="kanbanBoardScroll"', $view);
         self::assertStringContainsString('x-init="initBoardScroll($el)"', $view);
-        self::assertStringContainsString('kanban-column-handle', $view);
-        self::assertStringContainsString('kanban-column-handle-slot', $view);
-        self::assertStringContainsString('<span x-show="! column.locked" class="kanban-column-handle-slot">', $view);
+        self::assertStringNotContainsString('kanban-column-handle', $view);
+        self::assertStringNotContainsString('kanban-column-handle-slot', $view);
         self::assertStringContainsString('kanban-column-title', $view);
-        self::assertStringContainsString("\$translates['reorderColumn']", $view);
         self::assertStringContainsString('kanban-column-header--reorderable', $view);
         self::assertStringContainsString(':data-kanban-column-id="column.id"', $view);
         self::assertStringContainsString(':data-column-locked=', $view);
@@ -85,14 +83,19 @@ final class KanBanBuilderTest extends TestCase
         self::assertStringContainsString("this.boardScrollContainer.removeEventListener('wheel', this.boardScrollWheelHandler)", $script);
     }
 
-    public function test_column_header_grid_keeps_the_badge_compact_with_and_without_a_drag_handle(): void
+    public function test_column_header_grid_keeps_the_badge_compact_and_exposes_drag_feedback(): void
     {
         $stylesheet = file_get_contents(dirname(__DIR__, 2) . '/resources/css/stylesheet.css');
 
         self::assertIsString($stylesheet);
         self::assertStringContainsString('grid-template-columns: minmax(0, 1fr) auto auto;', $stylesheet);
         self::assertStringContainsString('.kanban-column-header--reorderable', $stylesheet);
-        self::assertStringContainsString('grid-template-columns: auto minmax(0, 1fr) auto auto;', $stylesheet);
+        self::assertMatchesRegularExpression(
+            '/\.kanban-column-header--reorderable\s*\{[^}]*cursor:\s*grab;[^}]*touch-action:\s*none;/s',
+            $stylesheet,
+        );
+        self::assertStringNotContainsString('.kanban-column-handle', $stylesheet);
+        self::assertStringNotContainsString('.kanban-column-handle-slot', $stylesheet);
         self::assertMatchesRegularExpression(
             '/\.kanban-column-header--locked\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) auto auto;/s',
             $stylesheet,

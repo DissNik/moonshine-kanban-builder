@@ -28,7 +28,6 @@ final class KanBanBuilder extends IterableComponent
     protected array $translates = [
         'notfound' => 'moonshine::ui.notfound',
         'emptyColumn' => 'moonshine-kanban-builder::ui.empty_column',
-        'reorderColumn' => 'moonshine-kanban-builder::ui.reorder_column',
     ];
 
     /**

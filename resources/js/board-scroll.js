@@ -8,12 +8,7 @@ export function horizontalWheelScrollLeft({
 } = {}) {
     const maxScrollLeft = Math.max(0, scrollWidth - clientWidth)
 
-    if (
-        ctrlKey
-        || maxScrollLeft === 0
-        || deltaY === 0
-        || Math.abs(deltaX) >= Math.abs(deltaY)
-    ) {
+    if (ctrlKey || maxScrollLeft === 0 || deltaY === 0 || Math.abs(deltaX) >= Math.abs(deltaY)) {
         return null
     }
 

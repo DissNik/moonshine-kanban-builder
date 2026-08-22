@@ -1,14 +1,7 @@
 import Sortable from 'sortablejs'
-import {
-    columnOrderRequestPayload,
-    reorderMovableColumns,
-    withColumnOrderVersion,
-} from './column-order.js'
+import { columnOrderRequestPayload, reorderMovableColumns, withColumnOrderVersion } from './column-order.js'
 import { horizontalWheelScrollLeft } from './board-scroll.js'
-import {
-    isTopLevelColumnMove,
-    sortablePositionChanged,
-} from './column-drag.js'
+import { isTopLevelColumnMove, sortablePositionChanged } from './column-drag.js'
 
 if (!Sortable.__kanbanDestroyedInstanceGuardApplied) {
     const originalHandleEvent = Sortable.prototype.handleEvent
@@ -47,11 +40,13 @@ function normalizeEvents(events, fallback = []) {
 
 function dispatchBrowserEvents(events, detail = {}) {
     normalizeEvents(events).forEach((eventName) => {
-        window.dispatchEvent(new CustomEvent(eventName, {
-            detail,
-            bubbles: true,
-            composed: true,
-        }))
+        window.dispatchEvent(
+            new CustomEvent(eventName, {
+                detail,
+                bubbles: true,
+                composed: true,
+            }),
+        )
     })
 }
 
@@ -94,9 +89,7 @@ function haveSameIdsInSameCount(currentItems = [], incomingItems = []) {
 }
 
 function shouldUseTouchFallbackDrag() {
-    return window.matchMedia?.('(pointer: coarse)')?.matches
-        || 'ontouchstart' in window
-        || navigator.maxTouchPoints > 0
+    return window.matchMedia?.('(pointer: coarse)')?.matches || 'ontouchstart' in window || navigator.maxTouchPoints > 0
 }
 
 function syncFallbackClone(clone, item) {
@@ -118,11 +111,7 @@ function syncColumnFallbackClone(clone) {
         return
     }
 
-    clone.classList.remove(
-        'kanban-column-lift',
-        'kanban-column-ghost',
-        'kanban-column-chosen',
-    )
+    clone.classList.remove('kanban-column-lift', 'kanban-column-ghost', 'kanban-column-chosen')
     clone.classList.add('kanban-column-fallback')
     clone.querySelectorAll('*').forEach((element) => stripAlpineAttributes(element))
     stripAlpineAttributes(clone)
@@ -131,11 +120,7 @@ function syncColumnFallbackClone(clone) {
 
 function stripAlpineAttributes(element) {
     Array.from(element.attributes).forEach((attribute) => {
-        if (
-            attribute.name.startsWith('x-')
-            || attribute.name.startsWith('@')
-            || attribute.name.startsWith(':')
-        ) {
+        if (attribute.name.startsWith('x-') || attribute.name.startsWith('@') || attribute.name.startsWith(':')) {
             element.removeAttribute(attribute.name)
         }
     })
@@ -193,10 +178,7 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
         snapshotUrl: config.snapshotUrl ?? '',
         reorderUrl: config.reorderUrl ?? '',
         columnReorderUrl: config.columnReorderUrl ?? '',
-        refreshEvents: normalizeEvents(
-            config.refreshEvents,
-            normalizeEvents(transport.signals?.refresh),
-        ),
+        refreshEvents: normalizeEvents(config.refreshEvents, normalizeEvents(transport.signals?.refresh)),
         transport,
         transportMode,
         pollInterval,
@@ -233,10 +215,10 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
             if (this.transportMode === 'polling' && this.pollInterval > 0) {
                 this.intervalId = window.setInterval(() => {
                     if (
-                        !document.hidden
-                        && !this.reorderInFlight
-                        && !this.columnReorderInFlight
-                        && !this.columnDragging
+                        !document.hidden &&
+                        !this.reorderInFlight &&
+                        !this.columnReorderInFlight &&
+                        !this.columnDragging
                     ) {
                         void this.refresh()
                     }
@@ -358,22 +340,25 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
         },
 
         mergeSnapshotColumns(columns = []) {
-            return this.withRenderKeys((columns || []).map((incomingColumn) => {
-                const currentColumn = this.columns.find((column) => column.id === incomingColumn.id)
+            return this.withRenderKeys(
+                (columns || []).map((incomingColumn) => {
+                    const currentColumn = this.columns.find((column) => column.id === incomingColumn.id)
 
-                if (!currentColumn || !haveSameIdsInSameCount(currentColumn.items || [], incomingColumn.items || [])) {
-                    return incomingColumn
-                }
+                    if (
+                        !currentColumn ||
+                        !haveSameIdsInSameCount(currentColumn.items || [], incomingColumn.items || [])
+                    ) {
+                        return incomingColumn
+                    }
 
-                const incomingItemsById = new Map(
-                    (incomingColumn.items || []).map((item) => [item.id, item]),
-                )
+                    const incomingItemsById = new Map((incomingColumn.items || []).map((item) => [item.id, item]))
 
-                return {
-                    ...incomingColumn,
-                    items: (currentColumn.items || []).map((item) => incomingItemsById.get(item.id) ?? item),
-                }
-            }))
+                    return {
+                        ...incomingColumn,
+                        items: (currentColumn.items || []).map((item) => incomingItemsById.get(item.id) ?? item),
+                    }
+                }),
+            )
         },
 
         syncLocalStateAfterReorder() {
@@ -387,23 +372,27 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
                         this.columns.flatMap((column) => (column.items || []).map((item) => [item.id, item])),
                     )
 
-                    this.columns = this.withRenderKeys(this.columns.map((column) => {
-                        const columnElement = this.$el.querySelector(`[data-column-id="${column.id}"]`)
+                    this.columns = this.withRenderKeys(
+                        this.columns.map((column) => {
+                            const columnElement = this.$el.querySelector(`[data-column-id="${column.id}"]`)
 
-                        if (!columnElement) {
-                            return column
-                        }
+                            if (!columnElement) {
+                                return column
+                            }
 
-                        const items = Array.from(columnElement.children)
-                            .filter((item) => item instanceof HTMLElement && item.matches('.kanban-draggable[data-id]'))
-                            .map((item) => itemPool.get(item.dataset.id) ?? null)
-                            .filter((item) => item !== null)
+                            const items = Array.from(columnElement.children)
+                                .filter(
+                                    (item) => item instanceof HTMLElement && item.matches('.kanban-draggable[data-id]'),
+                                )
+                                .map((item) => itemPool.get(item.dataset.id) ?? null)
+                                .filter((item) => item !== null)
 
-                        return {
-                            ...column,
-                            items,
-                        }
-                    }))
+                            return {
+                                ...column,
+                                items,
+                            }
+                        }),
+                    )
                 })
             })
         },
@@ -468,12 +457,7 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
         },
 
         isRefreshBusy() {
-            return Boolean(
-                this.dragging
-                || this.columnDragging
-                || this.reorderInFlight
-                || this.columnReorderInFlight
-            )
+            return Boolean(this.dragging || this.columnDragging || this.reorderInFlight || this.columnReorderInFlight)
         },
 
         async refresh({ force = false, allowDuringDrag = false } = {}) {
@@ -582,12 +566,7 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
         clearColumnDrag() {
             this.columnDragging = false
 
-            if (
-                !this.pendingRefresh
-                || this.dragging
-                || this.reorderInFlight
-                || this.columnReorderInFlight
-            ) {
+            if (!this.pendingRefresh || this.dragging || this.reorderInFlight || this.columnReorderInFlight) {
                 return
             }
 
@@ -698,18 +677,22 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
             let reorderSucceeded = false
 
             try {
-                await axios.post(this.reorderUrl, {
-                    [this.reorderRequest.itemId ?? 'item_id']: cardId,
-                    [this.reorderRequest.targetColumnId ?? 'column_id']: toColumnId,
-                    [this.reorderRequest.previousColumnId ?? 'previous_column_id']: fromColumnId,
-                    [this.reorderRequest.orderedIds ?? 'ordered_ids']: orderedIds,
-                }, {
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest',
-                        Accept: 'application/json, text/plain, */*',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                await axios.post(
+                    this.reorderUrl,
+                    {
+                        [this.reorderRequest.itemId ?? 'item_id']: cardId,
+                        [this.reorderRequest.targetColumnId ?? 'column_id']: toColumnId,
+                        [this.reorderRequest.previousColumnId ?? 'previous_column_id']: fromColumnId,
+                        [this.reorderRequest.orderedIds ?? 'ordered_ids']: orderedIds,
                     },
-                })
+                    {
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            Accept: 'application/json, text/plain, */*',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                        },
+                    },
+                )
 
                 reorderSucceeded = true
             } catch (error) {
@@ -833,12 +816,7 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
             }
 
             try {
-                await this.persistReorder(
-                    movedId,
-                    sourceColumnId,
-                    targetColumnId,
-                    orderedIds,
-                )
+                await this.persistReorder(movedId, sourceColumnId, targetColumnId, orderedIds)
             } catch (error) {
                 console.error('Reorder error:', error)
             }
@@ -871,13 +849,11 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
                     fallbackClass: 'kanban-fallback',
                     fallbackOnBody: true,
                     setData: (dataTransfer, dragElement) => {
-                        const value = dragElement
-                            ?.querySelector?.('.lead-kanban-card__title')
-                            ?.textContent
-                            ?.trim()
-                            || dragElement?.dataset?.id
-                            || dragElement?.getAttribute?.('data-id')
-                            || ''
+                        const value =
+                            dragElement?.querySelector?.('.lead-kanban-card__title')?.textContent?.trim() ||
+                            dragElement?.dataset?.id ||
+                            dragElement?.getAttribute?.('data-id') ||
+                            ''
 
                         dataTransfer.clearData()
                         dataTransfer.setData('Text', value)
@@ -906,9 +882,9 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
                         event.item.classList.remove('kanban-lift')
 
                         if (
-                            !this.reorderInFlight
-                            && event.from === event.to
-                            && event.oldDraggableIndex === event.newDraggableIndex
+                            !this.reorderInFlight &&
+                            event.from === event.to &&
+                            event.oldDraggableIndex === event.newDraggableIndex
                         ) {
                             this.clearDrag()
                         }
@@ -922,7 +898,9 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
                 this.columnSortable = Sortable.create(this.$refs.columns, {
                     animation: 150,
                     direction: 'horizontal',
-                    handle: '.kanban-column-handle',
+                    handle: '.kanban-column-header',
+                    filter: '.kanban-column-actions, button, a, input, textarea, select, option, label, [role="button"], [contenteditable="true"]',
+                    preventOnFilter: false,
                     draggable: '.kanban-column[data-column-locked="0"]',
                     swapThreshold: 0.65,
                     invertSwap: true,
@@ -933,12 +911,13 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
                     fallbackTolerance: 4,
                     fallbackClass: 'kanban-column-fallback',
                     fallbackOnBody: true,
-                    onMove: (event) => isTopLevelColumnMove({
-                        root: this.$refs.columns,
-                        dragged: event.dragged,
-                        from: event.from,
-                        to: event.to,
-                    }),
+                    onMove: (event) =>
+                        isTopLevelColumnMove({
+                            root: this.$refs.columns,
+                            dragged: event.dragged,
+                            from: event.from,
+                            to: event.to,
+                        }),
                     onChoose: (event) => {
                         event.item.setAttribute('x-ignore', '')
                     },

@@ -61,6 +61,13 @@ test('column Sortable uses the top-level policy and placeholder lifecycle', () =
     assert.match(script, /sortablePositionChanged\(event\)/)
 })
 
+test('column Sortable drags by the header without capturing its actions', () => {
+    assert.match(script, /handle: '\.kanban-column-header'/)
+    assert.match(script, /filter: '[^']*\.kanban-column-actions[^']*button[^']*a[^']*'/)
+    assert.match(script, /preventOnFilter: false/)
+    assert.doesNotMatch(script, /handle: '\.kanban-column-handle'/)
+})
+
 test('column placeholder hides its contents while the floating clone stays visible', () => {
     assert.match(stylesheet, /\.kanban-column-lift,[\s\S]*\.kanban-column-ghost\s*\{/)
     assert.match(stylesheet, /\.kanban-column-lift\s*>\s*\*,[\s\S]*\.kanban-column-ghost\s*>\s*\*\s*\{[\s\S]*opacity:\s*0/)

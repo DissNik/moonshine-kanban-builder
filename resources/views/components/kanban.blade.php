@@ -61,17 +61,6 @@
                                     'kanban-column-header',
                                     'kanban-column-header--reorderable' => filled(data_get($board, 'columnReorderUrl')),
                                 ]) :class="{ 'kanban-column-header--locked': column.locked }">
-                                    @if(filled(data_get($board, 'columnReorderUrl')))
-                                        <span x-show="! column.locked" class="kanban-column-handle-slot">
-                                            <button
-                                                type="button"
-                                                class="kanban-column-handle"
-                                                :aria-label="{{ Js::from($translates['reorderColumn']) }}.replace(':column', column.label)"
-                                            >
-                                                ⋮⋮
-                                            </button>
-                                        </span>
-                                    @endif
                                     <h4 class="kanban-column-title" x-text="column.label"></h4>
                                     <span class="badge badge-gray" x-text="(column.items || []).length"></span>
                                     <div class="kanban-column-actions" x-show="column.header_html" x-html="column.header_html"></div>
