@@ -52,7 +52,7 @@
 
                         <template x-for="column in columns" :key="`${column.id}-${column.renderKey ?? 0}`">
                             <section
-                                class="box space-elements kanban-column p-0"
+                                class="box kanban-column p-0"
                                 :data-kanban-column-id="column.id"
                                 :data-column-locked="column.locked ? '1' : '0'"
                                 style="min-width: 20rem; max-width: 20rem; width: 20rem; flex: 0 0 20rem;"

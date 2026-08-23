@@ -55,6 +55,8 @@ final class KanBanBuilderTest extends TestCase
         self::assertStringNotContainsString('kanban-column-handle-slot', $view);
         self::assertStringContainsString('kanban-column-title', $view);
         self::assertStringContainsString('kanban-column-header--reorderable', $view);
+        self::assertStringContainsString('class="box kanban-column p-0"', $view);
+        self::assertStringNotContainsString('box space-elements kanban-column', $view);
         self::assertStringContainsString(':data-kanban-column-id="column.id"', $view);
         self::assertStringContainsString(':data-column-locked=', $view);
         self::assertStringContainsString('x-html="column.header_html"', $view);
@@ -90,6 +92,7 @@ final class KanBanBuilderTest extends TestCase
         self::assertIsString($stylesheet);
         self::assertStringContainsString('grid-template-columns: minmax(0, 1fr) auto auto;', $stylesheet);
         self::assertStringContainsString('.kanban-column-header--reorderable', $stylesheet);
+        self::assertStringContainsString('margin-top: calc(var(--spacing, 0.25rem) * 2);', $stylesheet);
         self::assertMatchesRegularExpression(
             '/\.kanban-column-header--reorderable\s*\{[^}]*cursor:\s*grab;[^}]*touch-action:\s*none;/s',
             $stylesheet,

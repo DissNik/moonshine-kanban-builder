@@ -121,6 +121,7 @@
 .kanban-column-scroll {
     max-height: calc(100vh - 16rem);
     min-height: 4.25rem;
+    margin-top: calc(var(--spacing, 0.25rem) * 2);
     overflow-x: hidden;
     overflow-y: auto;
     overflow-y: overlay;
