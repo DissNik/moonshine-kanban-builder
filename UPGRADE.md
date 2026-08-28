@@ -1,10 +1,25 @@
-# Upgrade from 1.x to 2.x
+# Переход с 1.x на 2.x
 
-External applications may remain pinned to 1.x. Upgrade intentionally when the host is ready to accept the expanded snapshot contract.
+Внешние VCS-приложения могут оставаться на `1.x-dev`. Выполняйте переход намеренно, когда host-приложение готово принять расширенный контракт snapshot.
 
-## Snapshot changes
+## Обязательная миграция API
 
-Every serialized column now contains:
+Версия 2 удаляет устаревший API серверной отрисовки builder. Обновите каждую интеграцию до изменения Composer constraint:
+
+| 1.x | 2.x |
+| --- | --- |
+| `groups()` и field mapper | Сформированные host-приложением колонки `snapshot()` и HTML элементов |
+| `reorderRoute()` | `reorderUrl()` |
+| `initialSnapshot()` | `snapshot()` |
+| Ключ колонки `status` | Ключ колонки `id` |
+| Ключ элемента `card_html` | Ключ элемента `html` |
+| CSV-поля сортировки `data` и `parent` | JSON-поля `ordered_ids` и `column_id` |
+
+Запрос сортировки 2.x также содержит `item_id` и `previous_column_id`. Разбирайте его через `KanbanReorderPayload::fromArray()`, а сохранение, авторизацию и проверку принадлежности доске оставляйте в host-приложении.
+
+## Изменения snapshot
+
+Каждая сериализованная колонка теперь содержит:
 
 ```json
 {
@@ -16,32 +31,37 @@ Every serialized column now contains:
 }
 ```
 
-Old input snapshots without the two new keys remain readable and normalize to `false` and an empty string.
+Snapshot, уже использующие формат 2.x с `id`/`html`, могут не содержать только два новых ключа: они нормализуются в `false` и пустую строку.
 
-## Enable column sorting
+## Включение сортировки колонок
 
-1. Put a host-owned optimistic-lock value in `snapshot.meta.column_order_version`.
-2. Pass a persistence endpoint through `columnReorderUrl()`.
-3. Accept the strict request:
+1. Поместите принадлежащее host-приложению значение optimistic lock в `snapshot.meta.column_order_version`.
+2. Передайте endpoint сохранения через `columnReorderUrl()`.
+3. Примите строгий запрос:
 
 ```json
 {"ordered_column_ids":["stage-b","stage-a"],"version":"7"}
 ```
 
-4. Return the next lock as `{"version":"8"}`.
-5. Mark immutable columns with `locked: true`.
+4. Верните следующую версию блокировки как `{"version":"8"}`.
+5. Отметьте неизменяемые колонки через `locked: true`.
 
-Without `columnReorderUrl()`, 2.x preserves existing card-only behavior and does not initialize column sorting.
+`KanbanColumnOrderPayload` проверяет только структуру запроса. Endpoint сохранения обязан аутентифицировать пользователя и авторизовать доступ к текущей доске, проверить точное совпадение переданных ID с полным набором её перемещаемых колонок, отклонить чужие и заблокированные колонки, а также атомарно сравнить и обновить optimistic-lock версию вместе с сортировкой.
 
-## Header and trailing actions
+Без `columnReorderUrl()` версия 2.x сохраняет существующее поведение только для карточек и не инициализирует сортировку колонок.
 
-Use `headerHtml` for trusted host-rendered header controls and `afterColumns()` for MoonShine components placed after the last column. Both are raw host extension points: escape database/user values before rendering and never pass untrusted HTML directly.
+## Действия в заголовке и после колонок
 
-## Assets
+Используйте `headerHtml` для доверенных элементов управления в заголовке, отрисованных host-приложением, а `afterColumns()` — для компонентов MoonShine после последней колонки. Оба являются raw extension points: экранируйте значения из базы данных и пользовательский ввод перед отрисовкой и никогда не передавайте недоверенный HTML напрямую.
 
-Rebuild and republish package assets after upgrading:
+## Установка релиза 2.x
+
+Пакет распространяется напрямую из VCS-репозитория GitHub. Измените Composer constraint и повторно опубликуйте собранные ассеты:
 
 ```bash
-npm run build
+composer config repositories.moonshine-kanban-builder vcs https://github.com/DissNik/moonshine-kanban-builder.git
+composer require dissnik/moonshine-kanban-builder:^2.0 --with-all-dependencies
 php artisan vendor:publish --tag=moonshine-kanban-builder-assets --force
 ```
+
+`npm run build` является командой сопровождающего пакета и не требуется в приложении-потребителе.

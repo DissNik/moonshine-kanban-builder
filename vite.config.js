@@ -1,10 +1,8 @@
-import { defineConfig } from 'vite';
-import tailwindcss from '@tailwindcss/vite';
+import { defineConfig } from 'vite'
+import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
-    plugins: [
-        tailwindcss(),
-    ],
+    plugins: [tailwindcss()],
     publicDir: false,
     build: {
         emptyOutDir: true,
@@ -13,14 +11,14 @@ export default defineConfig({
             input: 'resources/js/script.js',
             output: {
                 entryFileNames: `js/script.js`,
-                assetFileNames: file => {
+                assetFileNames: (file) => {
                     let ext = file.name.split('.').pop()
                     if (ext === 'css') {
                         return 'css/stylesheet.css'
                     }
-                }
-            }
+                },
+            },
         },
         outDir: 'public',
     },
-});
+})

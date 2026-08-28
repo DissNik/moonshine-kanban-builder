@@ -1,22 +1,29 @@
-# Changelog
+# История изменений
 
 ## 2.0.0
 
-### Added
+### Добавлено
 
-- Independent drag-and-drop ordering for columns.
-- Locked columns that stay after movable columns.
-- Trusted host-rendered column header actions.
-- An `afterColumns()` component slot.
-- Strict `KanbanColumnOrderPayload` request parsing.
-- Optimistic column-order versions and browser rollback after failed persistence.
+- Независимая drag-and-drop сортировка колонок.
+- Заблокированные колонки, которые всегда располагаются после перемещаемых.
+- Доверенные действия в заголовке колонки, отрисованные host-приложением.
+- Слот компонента `afterColumns()`.
+- Строгий разбор запроса через `KanbanColumnOrderPayload`.
+- Оптимистичные версии порядка колонок и откат интерфейса после ошибки сохранения.
 
-### Changed
+### Изменено
 
-- `KanbanColumn` snapshots always contain `locked` and `header_html`.
-- Column management is opt-in through `columnReorderUrl()` and remains independent from card reorder.
-- The Vite build uses one JavaScript entry and preserves the canonical published asset paths.
+- Snapshot `KanbanColumn` всегда содержит `locked` и `header_html`.
+- Управление колонками включается явно через `columnReorderUrl()` и не зависит от сортировки карточек.
+- Vite использует единственную JavaScript-точку входа и сохраняет канонические пути публикуемых ассетов.
 
-### Compatibility
+### Удалено
 
-Version 2 is a breaking major. Existing external consumers may remain on the latest 1.x release until they intentionally migrate.
+- Устаревшие API `groups()`, field mapper и серверной отрисовки колонок.
+- `reorderRoute()` и `initialSnapshot()` в пользу `reorderUrl()` и `snapshot()`.
+- Устаревшие ключи snapshot `status` и `card_html` в пользу `id` и `html`.
+- CSV-поля сортировки `data` и `parent` в пользу JSON-контракта.
+
+### Совместимость
+
+Версия 2 является breaking major. Существующие VCS-потребители могут оставаться на `1.x-dev` до намеренного перехода.

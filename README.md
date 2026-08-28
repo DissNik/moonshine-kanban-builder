@@ -1,20 +1,22 @@
 # MoonShine Kanban Builder
 
-`dissnik/moonshine-kanban-builder` 2.x is a snapshot-driven MoonShine kanban component with independent card and column sorting.
+`dissnik/moonshine-kanban-builder` 2.x — управляемый snapshot компонент kanban для MoonShine с независимой сортировкой карточек и колонок.
 
-This package now has a single public integration path:
+Пакет предоставляет единый публичный путь интеграции:
 
-- the host application owns column/item snapshots;
-- the package renders those snapshots and manages drag-and-drop runtime;
-- refresh, reorder persistence, and card-open behavior stay consumer-owned.
+- host-приложение формирует snapshot колонок и элементов;
+- пакет отрисовывает snapshot и управляет drag-and-drop runtime;
+- обновление, сохранение сортировки и открытие карточек остаются ответственностью приложения-потребителя.
 
-Legacy server-rendered builder columns, field mappers, and classic `CardsBuilder`-style usage were removed.
+Устаревшие серверные колонки builder, field mapper и классическое использование в стиле `CardsBuilder` удалены.
 
 <picture>
     <img alt="Kanban Builder" src="./art/screenshot.png">
 </picture>
 
-## Installation
+## Установка
+
+Требуется PHP `^8.2`, MoonShine `^4.0` и Laravel/Illuminate `^11.0|^12.0`.
 
 ```bash
 composer config repositories.moonshine-kanban-builder vcs https://github.com/DissNik/moonshine-kanban-builder.git
@@ -22,13 +24,13 @@ composer require dissnik/moonshine-kanban-builder:^2.0
 php artisan vendor:publish --tag=moonshine-kanban-builder-assets
 ```
 
-Optional config publishing:
+Опциональная публикация конфигурации:
 
 ```bash
 php artisan vendor:publish --tag=moonshine-kanban-builder-config
 ```
 
-## Usage
+## Использование
 
 ```php
 use DissNik\MoonShineKanBanBuilder\Components\KanBanBuilder;
@@ -42,7 +44,7 @@ KanBanBuilder::make()
     ->cardClickEvent('lead-kanban:card-open');
 ```
 
-Column management is opt-in. A host can add draggable/locked columns, trusted header actions and an action after the final column:
+Управление колонками включается явно. Host-приложение может добавлять перемещаемые и заблокированные колонки, доверенные действия в заголовке и действие после последней колонки:
 
 ```php
 use DissNik\MoonShineKanBanBuilder\Support\KanbanColumn;
@@ -71,19 +73,19 @@ KanBanBuilder::make()
     ]);
 ```
 
-The consumer remains responsible for:
+Приложение-потребитель отвечает за:
 
-- generating the snapshot payload;
-- exposing the snapshot endpoint;
-- persisting drag reorder;
-- deciding which browser events should force a refresh;
-- handling card-open behavior in the host application.
+- формирование snapshot;
+- endpoint получения snapshot;
+- сохранение drag-and-drop сортировки;
+- выбор browser events, принудительно обновляющих доску;
+- обработку открытия карточки в host-приложении.
 
-## Snapshot Contract
+## Контракт snapshot
 
-`snapshot()` and `snapshotUrl()` must use the same payload shape.
+`snapshot()` и `snapshotUrl()` должны использовать одну форму payload.
 
-Minimal example:
+Минимальный пример:
 
 ```json
 {
@@ -109,25 +111,25 @@ Minimal example:
 }
 ```
 
-Rules:
+Правила:
 
-- `columns[].id` is the stable column identity used by the JS runtime and reorder protocol.
-- `columns[].locked` excludes a column from column ordering. Locked columns are rendered after movable columns.
-- `columns[].header_html` is an optional trusted, host-rendered action area.
-- `items[].id` is the stable card identity used for DOM diffing and reorder persistence.
-- `items[].html` is consumer-rendered card markup injected into the board as-is.
-- extra item keys are preserved and passed back to `cardClickEvent()` as `event.detail.card`.
-- `changed: false` may be returned with an empty `columns` array when nothing changed.
+- `columns[].id` — стабильный ID колонки для JS runtime и протокола сортировки.
+- `columns[].locked` исключает колонку из сортировки. Заблокированные колонки отрисовываются после перемещаемых.
+- `columns[].header_html` — опциональная область доверенных действий, отрисованная host-приложением.
+- `items[].id` — стабильный ID карточки для DOM diff и сохранения сортировки.
+- `items[].html` — отрисованная потребителем разметка карточки, вставляемая в доску без изменений.
+- дополнительные ключи элемента сохраняются и возвращаются в `cardClickEvent()` как `event.detail.card`.
+- при отсутствии изменений разрешён ответ `changed: false` с пустым массивом `columns`.
 
-The package exposes value objects for this contract:
+Пакет предоставляет value objects этого контракта:
 
 - `DissNik\MoonShineKanBanBuilder\Support\KanbanSnapshot`
 - `DissNik\MoonShineKanBanBuilder\Support\KanbanColumn`
 - `DissNik\MoonShineKanBanBuilder\Support\KanbanItem`
 
-## Reorder Protocol
+## Протокол сортировки карточек
 
-Drag reorder is persisted through a strict JSON payload:
+Drag-and-drop сортировка сохраняется строгим JSON payload:
 
 ```json
 {
@@ -138,9 +140,9 @@ Drag reorder is persisted through a strict JSON payload:
 }
 ```
 
-Client-side field names are also exposed through `KanbanReorderPayload::clientConfig()`.
+Клиентские имена полей также доступны через `KanbanReorderPayload::clientConfig()`.
 
-On the server side, parse the same JSON shape through the package value object:
+На сервере разбирайте ту же JSON-структуру через value object пакета:
 
 ```php
 use DissNik\MoonShineKanBanBuilder\Support\KanbanReorderPayload;
@@ -153,11 +155,11 @@ $payload->previousColumnId;
 $payload->orderedIds;
 ```
 
-`KanbanReorderPayload::fromArray()` throws `InvalidArgumentException` when any required field is missing or `ordered_ids` is not a non-empty list of card ids.
+`KanbanReorderPayload::fromArray()` выбрасывает `InvalidArgumentException`, если отсутствует обязательное поле или `ordered_ids` не является непустым списком ID карточек.
 
-### Column reorder protocol
+### Протокол сортировки колонок
 
-When `columnReorderUrl()` is configured, dragging a column posts only movable IDs and the host's optimistic-lock version:
+Если настроен `columnReorderUrl()`, перемещение колонки отправляет только ID перемещаемых колонок и optimistic-lock версию host-приложения:
 
 ```json
 {
@@ -166,17 +168,19 @@ When `columnReorderUrl()` is configured, dragging a column posts only movable ID
 }
 ```
 
-Return the next version as `{"version":"8"}`. The package stores it in `snapshot.meta.column_order_version` for the next request. Parse or generate field names with `KanbanColumnOrderPayload`.
+Верните следующую версию как `{"version":"8"}`. Пакет сохранит её в `snapshot.meta.column_order_version` для следующего запроса. Разбирайте или генерируйте имена полей через `KanbanColumnOrderPayload`.
 
-If persistence fails, the browser restores the previous column order. Column sorting is not initialized unless the host passes `columnReorderUrl()`.
+`KanbanColumnOrderPayload` выполняет только структурный разбор. Endpoint host-приложения обязан аутентифицировать пользователя и авторизовать текущую доску, требовать точного совпадения ID с полным набором её перемещаемых колонок, отклонять чужие и заблокированные колонки, а также атомарно сравнивать и обновлять optimistic-lock версию вместе с сортировкой.
 
-### Trusted markup boundary
+При ошибке сохранения браузер восстанавливает прежний порядок колонок и запрашивает актуальный snapshot. Сортировка колонок не инициализируется без `columnReorderUrl()`.
 
-`items[].html`, `columns[].header_html`, and `afterColumns()` are trusted host-rendered extension points. They do not sanitize HTML. Never pass user-controlled strings directly; escape values in server-side views or construct controls with MoonShine components.
+### Граница доверенной разметки
 
-## Transport And Config
+`items[].html`, `columns[].header_html` и `afterColumns()` являются доверенными extension points, отрисованными host-приложением. Пакет не очищает этот HTML. Никогда не передавайте пользовательские строки напрямую: экранируйте значения в серверных представлениях или создавайте элементы управления через компоненты MoonShine.
 
-Package defaults live in `config/moonshine-kanban-builder.php`:
+## Transport и конфигурация
+
+Настройки пакета находятся в `config/kanban-builder.php` и публикуются в `config/moonshine-kanban-builder.php`:
 
 ```php
 return [
@@ -206,21 +210,21 @@ return [
 ];
 ```
 
-### Transport Modes
+### Режимы transport
 
-- `manual`: the board refreshes only from browser events.
-- `polling`: the board also refreshes on the configured polling interval.
-- `websocket`: reserved transport boundary; add a host adapter when realtime delivery is introduced.
+- `manual`: доска обновляется только по browser events.
+- `polling`: доска также обновляется через настроенный интервал polling.
+- `websocket`: зарезервированная transport boundary; для realtime-доставки host-приложение должно предоставить адаптер.
 
-### Structured Transport Boundary
+### Структурная transport boundary
 
-The package resolves transport through:
+Пакет разрешает transport через:
 
 - `DissNik\MoonShineKanBanBuilder\Contracts\KanbanTransportContract`
 - `DissNik\MoonShineKanBanBuilder\Support\KanbanTransport`
 - `DissNik\MoonShineKanBanBuilder\Support\NullKanbanTransport`
 
-Per-board overrides are available:
+Для отдельной доски доступны переопределения:
 
 ```php
 KanBanBuilder::make()
@@ -228,45 +232,43 @@ KanBanBuilder::make()
     ->pollInterval(7000);
 ```
 
-## Breaking Changes
+## Breaking changes
 
-This refactor intentionally removed the old package API:
+Рефакторинг намеренно удаляет прежний API пакета:
 
-- `groups()` was removed.
-- `reorderRoute()` was replaced by `reorderUrl()`.
-- `initialSnapshot()` was replaced by `snapshot()`.
-- legacy server-rendered card columns and field-mapper API were removed.
-- snapshot columns now use `id` instead of `status`.
-- snapshot items now use `html` instead of `card_html`.
-- reorder now sends JSON `ordered_ids` instead of CSV `data`, and `column_id` instead of `parent`.
-- 2.x column snapshots always serialize `locked` and `header_html`.
-- column sorting uses a separate endpoint and `meta.column_order_version`; it does not reuse the card snapshot version.
+- `groups()` удалён.
+- `reorderRoute()` заменён на `reorderUrl()`.
+- `initialSnapshot()` заменён на `snapshot()`.
+- Удалены устаревшие серверные колонки карточек и API field mapper.
+- Колонки snapshot используют `id` вместо `status`.
+- Элементы snapshot используют `html` вместо `card_html`.
+- Сортировка отправляет JSON `ordered_ids` вместо CSV `data`, а также `column_id` вместо `parent`.
+- Snapshot колонок 2.x всегда сериализует `locked` и `header_html`.
+- Сортировка колонок использует отдельный endpoint и `meta.column_order_version`, не переиспользуя версию snapshot карточек.
 
-See [UPGRADE.md](UPGRADE.md) for the 1.x to 2.x checklist.
+Полный checklist перехода с 1.x на 2.x находится в [UPGRADE.md](UPGRADE.md).
 
-## Asset Publishing
+## Публикация ассетов
 
-After rebuilding package assets, republish them to the consumer application:
+Сопровождающий пакета пересобирает production-ассеты командой:
 
 ```bash
 npm run build
+```
+
+После обновления Composer приложения-потребителя повторно опубликуйте уже собранные ассеты пакета:
+
+```bash
 php artisan vendor:publish --tag=moonshine-kanban-builder-assets --force
 ```
 
-If the app still uses old browser behavior after package changes, stale published assets are the first thing to check.
+Если приложение продолжает использовать старое browser behavior, сначала проверьте опубликованные ассеты на устаревшую копию.
 
-## Testing
+## Тестирование
 
-Package tests:
+Проверки пакета:
 
 ```bash
 vendor/bin/phpunit -c phpunit.xml.dist
 npm run test:js
-```
-
-Consumer validation:
-
-```bash
-cd franchise && php artisan test tests/Unit/KanbanPackageContractTest.php
-cd franchise && composer check
 ```
