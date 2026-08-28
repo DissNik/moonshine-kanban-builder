@@ -16,3 +16,17 @@ export function horizontalWheelScrollLeft({
 
     return nextScrollLeft === scrollLeft ? null : nextScrollLeft
 }
+
+export function verticalWheelScrollCanAdvance({ deltaY = 0, scrollTop = 0, clientHeight = 0, scrollHeight = 0 } = {}) {
+    const maxScrollTop = Math.max(0, scrollHeight - clientHeight)
+
+    if (deltaY < 0) {
+        return scrollTop > 0
+    }
+
+    if (deltaY > 0) {
+        return scrollTop < maxScrollTop
+    }
+
+    return false
+}

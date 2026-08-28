@@ -1,6 +1,11 @@
 export const movableColumnIds = (columns = []) =>
     columns.filter((column) => !column.locked).map((column) => String(column.id))
 
+export const lockedColumnsLast = (columns = []) => [
+    ...columns.filter((column) => !column.locked),
+    ...columns.filter((column) => column.locked),
+]
+
 export function reorderMovableColumns(columns = [], orderedIds = []) {
     const movable = columns.filter((column) => !column.locked)
     const normalizedIds = orderedIds.map((id) => String(id))

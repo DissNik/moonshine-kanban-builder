@@ -1,7 +1,12 @@
 import '../css/stylesheet.css'
 import Sortable from 'sortablejs'
-import { columnOrderRequestPayload, reorderMovableColumns, withColumnOrderVersion } from './column-order.js'
-import { horizontalWheelScrollLeft } from './board-scroll.js'
+import {
+    columnOrderRequestPayload,
+    lockedColumnsLast,
+    reorderMovableColumns,
+    withColumnOrderVersion,
+} from './column-order.js'
+import { horizontalWheelScrollLeft, verticalWheelScrollCanAdvance } from './board-scroll.js'
 import { isTopLevelColumnMove, sortablePositionChanged } from './column-drag.js'
 
 if (!Sortable.__kanbanDestroyedInstanceGuardApplied) {
@@ -226,7 +231,7 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
                 }, this.pollInterval)
             }
 
-            this.columns = this.withRenderKeys(this.columns)
+            this.columns = this.withRenderKeys(lockedColumnsLast(this.columns))
             this.$nextTick(() => this.bindSortables())
         },
 
@@ -272,6 +277,22 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
                 }
             }
             this.boardScrollWheelHandler = (event) => {
+                const nestedScrollContainer =
+                    event.target instanceof Element ? event.target.closest('.kanban-column-scroll') : null
+
+                if (
+                    nestedScrollContainer &&
+                    container.contains(nestedScrollContainer) &&
+                    verticalWheelScrollCanAdvance({
+                        deltaY: event.deltaY,
+                        scrollTop: nestedScrollContainer.scrollTop,
+                        clientHeight: nestedScrollContainer.clientHeight,
+                        scrollHeight: nestedScrollContainer.scrollHeight,
+                    })
+                ) {
+                    return
+                }
+
                 const nextScrollLeft = horizontalWheelScrollLeft({
                     deltaX: event.deltaX,
                     deltaY: event.deltaY,
@@ -341,8 +362,10 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
         },
 
         mergeSnapshotColumns(columns = []) {
+            const normalizedColumns = lockedColumnsLast(columns)
+
             return this.withRenderKeys(
-                (columns || []).map((incomingColumn) => {
+                normalizedColumns.map((incomingColumn) => {
                     const currentColumn = this.columns.find((column) => column.id === incomingColumn.id)
 
                     if (
@@ -792,6 +815,7 @@ window.kanbanBoard = function kanbanBoard(config = {}) {
                 dispatchBrowserEvents(this.transport.events?.reorderRefresh, { orderedColumnIds })
             } catch (error) {
                 this.columns = this.withRenderKeys(previousColumns)
+                this.scheduleDeferredRefresh(true)
                 console.error('Column reorder error:', error)
             } finally {
                 this.columnReorderInFlight = false
