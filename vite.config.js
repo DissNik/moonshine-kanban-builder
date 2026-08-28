@@ -5,11 +5,12 @@ export default defineConfig({
     plugins: [
         tailwindcss(),
     ],
+    publicDir: false,
     build: {
-        emptyOutDir: false,
+        emptyOutDir: true,
         manifest: 'manifest.json',
         rollupOptions: {
-            input: ['resources/js/script.js', 'resources/css/stylesheet.css'],
+            input: 'resources/js/script.js',
             output: {
                 entryFileNames: `js/script.js`,
                 assetFileNames: file => {

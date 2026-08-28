@@ -17,7 +17,8 @@ Legacy server-rendered builder columns, field mappers, and classic `CardsBuilder
 ## Installation
 
 ```bash
-composer require dissnik/moonshine-kanban-builder
+composer config repositories.moonshine-kanban-builder vcs https://github.com/DissNik/moonshine-kanban-builder.git
+composer require dissnik/moonshine-kanban-builder:^2.0
 php artisan vendor:publish --tag=moonshine-kanban-builder-assets
 ```
 

@@ -1,3 +1,4 @@
+import '../css/stylesheet.css'
 import Sortable from 'sortablejs'
 import { columnOrderRequestPayload, reorderMovableColumns, withColumnOrderVersion } from './column-order.js'
 import { horizontalWheelScrollLeft } from './board-scroll.js'

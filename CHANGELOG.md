@@ -15,6 +15,7 @@
 
 - `KanbanColumn` snapshots always contain `locked` and `header_html`.
 - Column management is opt-in through `columnReorderUrl()` and remains independent from card reorder.
+- The Vite build uses one JavaScript entry and preserves the canonical published asset paths.
 
 ### Compatibility
 
